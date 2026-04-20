@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "description": "",
   "scripts": {
-    "start": "parcel index.html",
-    "start:devnet": "cross-env NETWORK=devnet parcel index.html",
+    "start": "parcel index.html --no-cache",
+    "start:devnet": "cross-env NETWORK=devnet parcel index.html --no-cache",
+    "start:testnet": "cross-env NETWORK=testnet parcel index.html --no-cache",
+    "start:mainnet": "cross-env NETWORK=mainnet parcel index.html --no-cache",
     "build": "parcel build index.html --dist-dir dist --public-url ./",
     "lint": "tsc --noEmit",
     "check:devnet": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-devnet-rpc.ps1"

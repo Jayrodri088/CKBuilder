@@ -1,5 +1,5 @@
 import { ccc, CellDepInfoLike, KnownScript, Script } from "@ckb-ccc/core";
-import systemScripts from "./system-scripts.json";
+const systemScripts = require("./system-scripts.json");
 
 export type Network = 'devnet' | 'testnet' | 'mainnet';
 
@@ -45,4 +45,5 @@ export function readEnvNetwork(): Network {
   return network as Network;
 }
 
-export const cccClient = buildCccClient(readEnvNetwork());
+export const currentNetwork = readEnvNetwork();
+export const cccClient = buildCccClient(currentNetwork);

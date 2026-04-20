@@ -2,6 +2,8 @@ import { createRoot } from "react-dom/client";
 import React, { useEffect, useState } from 'react';
 import { capacityOf, generateAccountFromPrivateKey, shannonToCKB, transfer, wait } from './lib';
 import { Script } from '@ckb-ccc/core';
+import { currentNetwork } from './ccc-client';
+import './styles.css';
 
 const container = document.getElementById("root");
 const root = createRoot(container)
@@ -21,6 +23,7 @@ export function App() {
 
   const [isTransferring, setIsTransferring] = useState(false);
   const [txHash, setTxHash] = useState<string>();
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
     if (privKey) {
@@ -37,22 +40,24 @@ export function App() {
   };
 
   const onInputPrivKey = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Regular expression to match a valid private key with "0x" prefix
     const priv = e.target.value;
-    const privateKeyRegex = /^0x[0-9a-fA-F]{64}$/;
+    setPrivKey(priv);
+    setError(undefined);
+  };
 
-    const isValid = privateKeyRegex.test(priv);
-    if (isValid) {
-      setPrivKey(priv);
-    } else {
-      alert(
-        `Invalid private key: must start with 0x and 32 bytes length. Ensure you're using a valid private key from the offckb accounts list.`,
-      );
+  const updateAccountByPrivkey = async () => {
+    const privateKeyRegex = /^0x[0-9a-fA-F]{64}$/;
+    if (!privateKeyRegex.test(privKey)) {
+      setError("Private key must start with 0x and contain exactly 64 hex characters.");
+      return;
     }
+
+    await updateFromInfo();
   };
 
   const onTransfer = async () => {
     setIsTransferring(true);
+    setError(undefined);
     const txHash = await transfer(toAddr, amountInCKB, privKey).catch(alert);
 
     // We can wait for this txHash to be on-chain so that we can trigger the UI/UX updates including balance.
@@ -71,44 +76,79 @@ export function App() {
   const enabled = +amountInCKB > 61 && +balance > +amountInCKB && toAddr.length > 0 && !isTransferring;
   const amountTip =
     amountInCKB.length > 0 && +amountInCKB < 61 ? (
-      <span>
+      <span className="tip">
         amount must larger than 61 CKB, see{' '}
-        <a href="https://docs.nervos.org/docs/wallets/#requirements-for-ckb-transfers">why</a>
+        <a href="https://docs.nervos.org/docs/wallets/#requirements-for-ckb-transfers" target="_blank" rel="noreferrer">
+          why
+        </a>
       </span>
     ) : null;
 
   return (
-    <div>
-      <h1>View and Transfer Balance</h1>
-      <label htmlFor="private-key">Private Key: </label>&nbsp;
-      <input id="private-key" type="text" value={privKey} onChange={onInputPrivKey} />
-      <ul>
-        <li>CKB Address: {fromAddr}</li>
-        <li>
-          Current lock script:
-          <pre>{JSON.stringify(fromLock, null, 2)}</pre>
-        </li>
+    <main className="page">
+      <section className="card hero">
+        <p className="eyebrow">Nervos CKB Simple Transfer</p>
+        <h1>Simple CKB Transfer dApp</h1>
+        <p className="subtitle">
+          Send CKB with a clean UI, readable account info, and transaction feedback.
+        </p>
+        <p className="network-badge">
+          Active network: <strong>{currentNetwork}</strong>
+        </p>
+      </section>
 
-        <li>Total capacity: {balance} CKB</li>
-      </ul>
-      <label htmlFor="to-address">Transfer to Address: </label>&nbsp;
-      <input id="to-address" type="text" value={toAddr} onChange={(e) => setToAddr(e.target.value)} />
-      <br />
-      <label htmlFor="amount">Amount</label>
-      &nbsp;
-      <input id="amount" type="number" value={amountInCKB} onChange={(e) => setAmountInCKB(e.target.value)} />CKB{" "}
-      <small>Tx fee: 0.001 CKB</small>
-      <br />
-      <small style={{ color: 'red' }}>{amountTip}</small>
-      <br />
-      <br />
-      <button
-        disabled={!enabled}
-        onClick={onTransfer}
-      >
-        Transfer
-      </button>
-      {txHash && <div>tx hash: {txHash}</div>}
-    </div>
+      <section className="grid">
+        <article className="card">
+          <h2>Sender Account</h2>
+
+          <label htmlFor="private-key">Private Key</label>
+          <div className="inline">
+            <input id="private-key" type="text" value={privKey} onChange={onInputPrivKey} />
+            <button className="secondary" onClick={updateAccountByPrivkey}>
+              Refresh
+            </button>
+          </div>
+
+          <div className="stat">
+            <span>Total Capacity</span>
+            <strong>{balance} CKB</strong>
+          </div>
+
+          <div className="details">
+            <p><strong>Address</strong></p>
+            <code>{fromAddr || "Waiting for valid private key..."}</code>
+          </div>
+
+          <div className="details">
+            <p><strong>Current Lock Script</strong></p>
+            <pre>{JSON.stringify(fromLock, null, 2)}</pre>
+          </div>
+        </article>
+
+        <article className="card">
+          <h2>Transfer</h2>
+          <label htmlFor="to-address">Recipient Address</label>
+          <input id="to-address" type="text" value={toAddr} onChange={(e) => setToAddr(e.target.value)} />
+
+          <label htmlFor="amount">Amount (CKB)</label>
+          <input id="amount" type="number" value={amountInCKB} onChange={(e) => setAmountInCKB(e.target.value)} />
+
+          <p className="muted">Estimated tx fee: 0.001 CKB</p>
+          {amountTip}
+          {error && <p className="error">{error}</p>}
+
+          <button disabled={!enabled} onClick={onTransfer}>
+            {isTransferring ? "Transferring..." : "Transfer"}
+          </button>
+
+          {txHash && (
+            <div className="success">
+              <p><strong>Transaction sent</strong></p>
+              <code>{txHash}</code>
+            </div>
+          )}
+        </article>
+      </section>
+    </main>
   );
 }
