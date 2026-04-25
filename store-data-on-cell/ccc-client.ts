@@ -35,7 +35,7 @@ export function buildCccClient(network: Network) {
 
 export function readEnvNetwork(): Network {
   const network = process.env.NETWORK;
-  const defaultNetwork = 'devnet';
+  const defaultNetwork = 'testnet';
   if (!network) return defaultNetwork;
 
   if (!['devnet', 'testnet', 'mainnet'].includes(network)) {

@@ -63,19 +63,34 @@ export async function buildMessageTx(
   await tx.completeInputsByCapacity(signer);
   await tx.completeFeeBy(signer, 1000);
   const txHash = await signer.sendTransaction(tx);
-  alert(`The transaction hash is ${txHash}`);
 
   return txHash;
 }
 
-export async function readOnChainMessage(txHash: string, index = "0x0") {
-  const cell = await cccClient.getCellLive({ txHash, index }, true);
-  if (cell == null) {
-    return alert("cell not found, please retry later");
+async function waitForLiveCell(
+  txHash: string,
+  index: string,
+  retries = 10,
+  intervalMs = 1500
+) {
+  for (let i = 0; i < retries; i++) {
+    const cell = await cccClient.getCellLive({ txHash, index }, true);
+    if (cell != null) {
+      return cell;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
+  return null;
+}
+
+export async function readOnChainMessage(txHash: string, index = "0x0") {
+  const cell = await waitForLiveCell(txHash, index);
+  if (cell == null) {
+    throw new Error("Cell not found yet. Wait a bit and try reading again.");
+  }
+
   const data = cell.outputData;
   const msg = hexToUtf8(data);
-  alert("read msg: " + msg);
   return msg;
 }
 

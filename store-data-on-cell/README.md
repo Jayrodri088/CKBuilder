@@ -16,3 +16,19 @@ This example is originally modified from [hello, CKB](https://github.com/cryptap
   - `npm run start:testnet`
 - Run on mainnet:
   - `npm run start:mainnet`
+
+## Next Step
+
+Now that your dApp works great on local blockchain, you can switch environments to testnet or mainnet.
+
+Set network to testnet and restart:
+
+`export NETWORK=testnet`
+
+On Windows PowerShell, use:
+
+`$env:NETWORK='testnet'`
+
+Or simply run:
+
+`npm run start:testnet`
