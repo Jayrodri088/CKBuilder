@@ -23,6 +23,8 @@
 
 import { spawn } from "child_process";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -155,7 +157,12 @@ function main() {
   });
 }
 
-// Run main function if this script is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run main function if this script is executed directly.
+// Use fileURLToPath for cross-platform compatibility (Windows paths).
+const isDirectRun =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+
+if (isDirectRun) {
   main();
 }

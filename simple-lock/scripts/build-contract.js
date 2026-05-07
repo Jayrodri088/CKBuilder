@@ -4,6 +4,34 @@ import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 
+function resolveDebuggerBin() {
+  const localWindowsBin = path.join(
+    "tools",
+    "ckb-debugger",
+    "v1.1.1",
+    "ckb-debugger.exe",
+  );
+  const localUnixBin = path.join("tools", "ckb-debugger", "v1.1.1", "ckb-debugger");
+
+  const candidates = [
+    process.env.CKB_DEBUGGER_BIN,
+    process.platform === "win32" ? localWindowsBin : localUnixBin,
+    "ckb-debugger",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (candidate === "ckb-debugger") {
+      return candidate;
+    }
+    const resolved = path.resolve(candidate);
+    if (fs.existsSync(resolved)) {
+      return resolved;
+    }
+  }
+
+  return "ckb-debugger";
+}
+
 function buildContract(contractName) {
   if (!contractName) {
     console.error("Usage: node build-contract.js <contract-name>");
@@ -73,8 +101,9 @@ function buildContract(contractName) {
 
     // Step 3: Compile to bytecode with ckb-debugger
     console.log("  🔧 Compiling to bytecode...");
+    const debuggerBin = resolveDebuggerBin();
     const debuggerCmd = [
-      "ckb-debugger",
+      `"${debuggerBin}"`,
       `--read-file ${outputJsFile}`,
       "--bin node_modules/ckb-testtool/src/unittest/defaultScript/ckb-js-vm",
       "--",
@@ -82,7 +111,10 @@ function buildContract(contractName) {
       outputBcFile,
     ].join(" ");
 
-    execSync(debuggerCmd, { stdio: "pipe" });
+    execSync(debuggerCmd, {
+      stdio: "pipe",
+      shell: process.platform === "win32",
+    });
 
     console.log(`  ✅ Contract '${contractName}' built successfully!`);
     console.log(`     📄 JavaScript: ${outputJsFile}`);

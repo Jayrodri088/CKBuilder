@@ -10,6 +10,10 @@
     "test": "node scripts/build-all.js && jest",
     "add-contract": "node scripts/add-contract.js",
     "deploy": "node scripts/build-all.js && node scripts/deploy.js",
+    "dev": "pnpm --filter frontend run dev",
+    "dev:devnet": "pnpm --filter frontend run dev:devnet",
+    "dev:testnet": "pnpm --filter frontend run dev:testnet",
+    "dev:mainnet": "pnpm --filter frontend run dev:mainnet",
     "clean": "rimraf dist",
     "format": "prettier --write .",
     "check:devnet": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-devnet-rpc.ps1"

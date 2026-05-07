@@ -1,0 +1,12 @@
+{
+  "cell_recipes": [
+    {
+      "name": "hash-lock.bc",
+      "tx_hash": "0xd0a2f822f1758da66a57cceb17788bf10b7ca623748b81e8e75ad60b39303ea4",
+      "index": 0,
+      "occupied_capacity": 2781000000000,
+      "data_hash": "0xcd262cb39d9e83f63e5415a56a23982fb6ae79b993e3cf371c12fad71dd23519"
+    }
+  ],
+  "dep_group_recipes": []
+}
