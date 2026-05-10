@@ -1,0 +1,16 @@
+{
+  "name": "ccc-training-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:cell-dep": "node ./scripts/check-cell-dep.mjs",
+    "demo:hash-lock": "node ./scripts/derive-hash-lock.mjs",
+    "demo:playground-parity": "node ./scripts/playground-parity.mjs",
+    "proof:lifecycle": "node ./scripts/lifecycle-proof.mjs",
+    "run:all": "node ./scripts/run-all.mjs"
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "^1.9.0"
+  }
+}
