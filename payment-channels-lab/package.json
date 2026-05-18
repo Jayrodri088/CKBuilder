@@ -1,0 +1,28 @@
+{
+  "name": "payment-channels-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "parcel index.html --no-cache",
+    "build": "parcel build index.html --dist-dir dist --public-url ./",
+    "lint": "tsc --noEmit",
+    "sim": "tsx ./scripts/run-simulator.ts",
+    "proof:lifecycle": "tsx ./scripts/proof-channel-lifecycle.ts",
+    "fiber:status": "tsx ./scripts/fiber-status.ts",
+    "check:fiber-rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-fiber-rpc.ps1",
+    "run:all": "tsx ./scripts/run-all.ts"
+  },
+  "dependencies": {
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.9",
+    "parcel": "^2.15.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.8.3"
+  }
+}
