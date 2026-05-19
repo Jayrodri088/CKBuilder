@@ -1,0 +1,24 @@
+{
+  "name": "ckb-rust-cli-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capabilities": "node ./scripts/capabilities.mjs",
+    "tip": "node ./scripts/rpc-tip.mjs",
+    "block": "node ./scripts/rpc-block.mjs",
+    "gen-address": "node ./scripts/gen-address.mjs",
+    "parse-address": "node ./scripts/parse-address.mjs",
+    "compare:rpc": "node ./scripts/compare-rpc-paths.mjs",
+    "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
+    "check:rust": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rust.ps1",
+    "check:ckb-cli": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-ckb-cli.ps1",
+    "ckb-cli:demo": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/demo-ckb-cli-rpc.ps1",
+    "run:all": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-all.ps1",
+    "rust:build": "cargo build --manifest-path rust/Cargo.toml",
+    "rust:tip": "cargo run --manifest-path rust/Cargo.toml -- tip"
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "^1.9.0"
+  }
+}
