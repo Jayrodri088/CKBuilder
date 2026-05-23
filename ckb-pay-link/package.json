@@ -1,0 +1,15 @@
+{
+  "name": "ckb-pay-link",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hash-lock payment requests on CKB devnet",
+  "scripts": {
+    "sync:deployment": "node scripts/sync-deployment.mjs",
+    "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
+    "check:cell-dep": "node scripts/check-cell-dep.mjs",
+    "preflight": "pnpm run check:rpc && pnpm run check:cell-dep",
+    "dev": "pnpm --dir frontend run dev:devnet",
+    "build": "pnpm --dir frontend run build",
+    "demo": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/demo-weekend.ps1"
+  }
+}
