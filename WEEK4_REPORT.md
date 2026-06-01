@@ -93,15 +93,6 @@ This class bridges theory to the deployment pipeline already practiced with **ck
 
 ---
 
-## What remains
-
-- Install and run **fnn** locally so `pnpm run check:fiber` and the Fiber tab show live `node_info` (and eventually channels).
-- Continue **script course** beyond Class 2 (syscalls, Duktape/JS paths, Type ID, etc.).
-- **Pay Link Phase B:** Fiber payment flow when DevRel confirms testnet/faucet and RPC methods for demos.
-- Programme review: `pnpm run preflight` + L1 demo; optional `preflight:all` when Fiber is up.
-
----
-
 ## References
 
 - [Class 1: Validation Model](https://docs.nervos.org/docs/script-course/intro-to-script-1)
