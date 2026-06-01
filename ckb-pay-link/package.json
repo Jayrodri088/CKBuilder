@@ -8,6 +8,9 @@
     "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
     "check:cell-dep": "node scripts/check-cell-dep.mjs",
     "preflight": "pnpm run check:rpc && pnpm run check:cell-dep",
+    "check:fiber": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-fiber-rpc.ps1",
+    "fiber:status": "node scripts/fiber-status.mjs",
+    "preflight:all": "pnpm run preflight && pnpm run check:fiber",
     "dev": "pnpm --dir frontend run dev:devnet",
     "build": "pnpm --dir frontend run build",
     "demo": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/demo-weekend.ps1"

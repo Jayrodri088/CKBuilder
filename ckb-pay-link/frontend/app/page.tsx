@@ -14,8 +14,9 @@ import {
   wait,
 } from "./pay-link";
 import { useSearchParams } from "next/navigation";
+import { FiberPanel } from "./fiber-panel";
 
-type Tab = "create" | "payer" | "claim";
+type Tab = "create" | "payer" | "claim" | "fiber";
 
 function PayLinkApp() {
   const searchParams = useSearchParams();
@@ -138,8 +139,9 @@ function PayLinkApp() {
         </p>
         <h1 className="mt-2 text-3xl font-bold text-white">Hash-lock payment requests</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-300">
-          Create a lock address, share a payer link, fund on-chain, then claim with your
-          secret preimage.
+          <strong className="text-white">CKB L1:</strong> create a lock address, share a
+          payer link, fund on-chain, claim with your secret.{" "}
+          <strong className="text-violet-200">Fiber L2:</strong> probe channels (Phase A).
         </p>
         <p className="mt-3 text-xs text-slate-400">
           Network: <strong className="text-white">{currentNetwork}</strong>
@@ -150,8 +152,9 @@ function PayLinkApp() {
         {(
           [
             ["create", "1. Create"],
-            ["payer", "2. Pay"],
+            ["payer", "2. Pay (L1)"],
             ["claim", "3. Claim"],
+            ["fiber", "4. Fiber"],
           ] as const
         ).map(([id, title]) => (
           <button
@@ -160,7 +163,9 @@ function PayLinkApp() {
             onClick={() => setTab(id)}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               tab === id
-                ? "bg-emerald-500 text-slate-950"
+                ? id === "fiber"
+                  ? "bg-violet-500 text-slate-950"
+                  : "bg-emerald-500 text-slate-950"
                 : "border border-white/10 bg-slate-900/50 text-slate-300 hover:text-white"
             }`}
           >
@@ -267,6 +272,8 @@ function PayLinkApp() {
           </button>
         </section>
       )}
+
+      {tab === "fiber" && <FiberPanel />}
 
       {tab === "claim" && (
         <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 max-w-xl">

@@ -14,9 +14,15 @@ Devnet app: **create a hash-lock payment request → payer funds address → mer
 | 4 | **Claim** — preimage + receiver + amount → `unlock` tx |
 | 5 | `pnpm run demo` — scripted checks + manual UI steps |
 
-## Out of scope
+## Phase A (Fiber read-only) — done
 
-Mainnet, refunds/CLTV, wallet connector UI, new contract code.
+- Tab **4. Fiber**: probe `node_info` + `list_channels` via `/api/fiber` proxy
+- `pnpm run check:fiber` / `pnpm run fiber:status`
+- `pnpm run preflight:all` = CKB + Fiber
+
+## Out of scope (still)
+
+Mainnet, Fiber send_payment (Phase B), refunds/CLTV, wallet connector UI, new contract code.
 
 ## Prereqs
 
