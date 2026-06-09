@@ -1,0 +1,24 @@
+{
+  "name": "script-course-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CKB Script Course Class 1–2 runnable proofs",
+  "scripts": {
+    "build:carrot": "node scripts/build-carrot.mjs",
+    "class1": "node scripts/class1-validation-model.mjs",
+    "class2:mock": "node scripts/class2-carrot-mock.mjs",
+    "class2:live": "node scripts/class2-script-vs-code.mjs",
+    "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
+    "run:all": "node scripts/run-all.mjs"
+  },
+  "dependencies": {
+    "@ckb-js-std/bindings": "~0.1.0",
+    "@ckb-js-std/core": "~0.1.1"
+  },
+  "devDependencies": {
+    "@ckb-ccc/core": "~1.5.3",
+    "ckb-testtool": "0.1.1",
+    "esbuild": "~0.25.8"
+  }
+}
