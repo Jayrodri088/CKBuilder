@@ -1,259 +1,310 @@
-# Week 5 Report - CKBuilders Learning Journey
+# Weekly Report - CKBuilders Learning Journey
 
 ## Overview
 
-This report covers work completed from **June 9 to June 13, 2026**. The week moved through three layers of the CKB stack:
+This report covers the current Week 6 direction, following last week's work on the **SUDT Operations Lab** and **DAO Observatory**. The major update this week is a move from protocol lifecycle simulation into **rich digital objects on CKB**: Spore Protocol, DOB rendering, Spore SDK workflows, and Script-Sourced Rich Information (SSRI).
 
-1. understanding when and how scripts execute,
-2. building and testing native Rust scripts for CKB-VM,
-3. reconstructing complete SUDT and Nervos DAO workflows as interactive, verifiable learning applications.
+The work has now moved from research and architecture mapping into an implemented lab. A new `spore-dob-lab/` project was added to connect:
 
-The main shift was from studying isolated script concepts to modeling full protocol lifecycles. Each topic was delivered with a runnable interface or command-line proof, so the result can be demonstrated and checked rather than existing only as notes.
+- **Spore Protocol** as the CKB-native digital object standard,
+- **DOB/0 and DOB/1** as interpretation and rendering layers,
+- **Spore SDK** as the application-facing toolchain,
+- **SSRI** as a way for scripts to expose richer information and behavior to off-chain applications.
 
----
-
-## Script course lab: making the validation model executable
-
-The week began by consolidating the first two CKB Script Course modules into `script-course-lab/`.
-
-### Class 1: transaction validation
-
-The validation model was represented as code that determines which scripts execute for a transaction:
-
-- input lock scripts execute and are deduplicated by script identity,
-- input and output type scripts execute and are also deduplicated,
-- output lock scripts do not execute when their cells are created,
-- one failing script invalidates the complete transaction.
-
-This made the distinction between **creating a locked cell** and **spending a locked cell** concrete. It also connected earlier deployment problems to the correct validation stage: unresolved cell dependencies happen before CKB-VM execution, while lock and type script failures occur during transaction verification.
-
-### Class 2: script code and script references
-
-The second part builds a small `carrot` script into bytecode and verifies it with a mock transaction. It demonstrates that:
-
-- a CKB `Script` is a reference containing `code_hash`, `hash_type`, and `args`,
-- the executable program is stored separately as cell data,
-- the program must be included through a cell dependency,
-- script arguments configure an instance of the program,
-- witnesses and transaction context provide runtime evidence.
-
-The lab includes an optional live comparison against devnet, while the core validation and mock verification remain runnable offline.
-
-**Verification entry point:**
-
-```powershell
-cd script-course-lab
-pnpm run run:all
-```
-
-**Learning outcome:** the cell model is not just a storage abstraction. It determines how programs are referenced, grouped, and executed across a transaction.
+The goal is to extend the previous educational labs from "how cells move value" into "how cells can carry, describe, render, and expose programmable digital objects."
 
 ---
 
-## Rust script lab: moving from JavaScript-hosted scripts to native CKB-VM code
+## Major continuation from last week: from protocol cells to digital object cells
 
-The next step was `rust-script-lab/`, based on the official CKB Rust Script Quick Start.
+Last week's work ended with two substantial protocol reconstructions:
 
-Two small contracts were implemented:
+| Previous lab | What it proved |
+|--------------|----------------|
+| `sudt-operations-lab` | fungible-token supply conservation across ACP and cheque cells |
+| `dao-observatory` | DAO deposits, withdrawal headers, epoch locks, and compensation accounting |
 
-| Contract | Purpose |
-|----------|---------|
-| `hello-world` | Runs inside CKB-VM and writes a debug message through `ckb_std::debug!` |
-| `simple-print-args` | Loads the current script and reads its `args` field |
+This week builds on the same pattern, but applies it to digital objects.
 
-The scripts compile for the `riscv64imac-unknown-none-elf` target and are exercised in two ways:
+The new direction is not just "mint an NFT." The research centers on how CKB's cell model enables digital assets that are:
 
-- direct execution through `ckb-debugger`,
-- transaction-level tests through `ckb-testtool`.
+- fully on-chain,
+- redeemable for intrinsic CKByte value,
+- transferable with preserved privacy properties,
+- represented by one cell per digital object,
+- interpretable through DOB schemas and decoders,
+- potentially enriched by script-sourced methods through SSRI.
 
-### Windows toolchain work
-
-The lab includes PowerShell automation for building and testing on Windows. Important environment requirements were made explicit:
-
-- Rust stable with the RISC-V target,
-- a local `ckb-debugger` binary,
-- MSYS2 MinGW GCC for crates used by `ckb-testtool`,
-- no live CKB node or devnet required.
-
-The full process is wrapped by:
-
-```powershell
-cd rust-script-lab
-pnpm run run:all
-```
-
-This checks the debugger, builds release binaries, runs the Hello World script directly, and executes the Rust test suite.
-
-**Learning outcome:** script development can be tested at multiple levels. `ckb-debugger` proves that the binary executes, while `ckb-testtool` proves how it behaves inside a transaction-shaped environment.
+The resulting artifact is a **Spore / DOB / SSRI Observatory**: a learning lab that explains and simulates the lifecycle of a Spore object from creation, to transfer, to melt, while also showing how DOB metadata and rendering are layered on top.
 
 ---
 
-## SUDT Operations Lab: reconstructing token movement through cells
+## Spore Protocol study: digital objects as first-class cells
 
-The historical `ckb-cli` SUDT operations tutorial was rebuilt as `sudt-operations-lab/`, an interactive browser application backed by a deterministic accounting model.
+The first area of work was a comprehensive pass through the Spore Protocol documentation.
 
-The lab demonstrates the complete lifecycle:
+Spore is positioned as an on-chain Digital Object protocol on Nervos CKB. Unlike traditional NFT patterns that often point to off-chain metadata, Spore stores digital-object content directly on CKB and links the object to the CKBytes used to create it.
 
-1. create an empty Anyone-Can-Pay cell,
-2. issue SUDT into a cheque,
-3. claim the cheque into an ACP cell,
-4. transfer directly between ACP cells,
-5. issue additional supply,
-6. create a receiver-specific cheque,
-7. claim a cheque immediately,
-8. leave a cheque unclaimed,
-9. advance six epochs,
-10. refund the expired cheque to its sender.
+### Concepts mapped this week
 
-### Important protocol concepts
+| Concept | Working understanding |
+|---------|----------------------|
+| Spore | one digital object represented by one CKB cell |
+| Intrinsic value | the object is backed by CKBytes locked in the cell |
+| Melt | the owner can redeem the object back into underlying CKB |
+| Zero-fee transfer | extra capacity margin can be reserved to pay future transaction fees |
+| Privacy | transfer flow can avoid obvious address-linking patterns by preserving cell-model privacy properties |
+| Multi-content support | Spore can represent more than static image NFTs |
 
-- The **SUDT type script** controls token issuance and supply conservation.
-- The **lock script** controls who may consume each token cell.
-- Anyone-Can-Pay allows value to be added without the receiver signing.
-- A cheque allows the receiver to claim immediately.
-- The cheque sender receives a refund path after the timeout.
-- Transfers change cell ownership and data, but do not change total issued supply.
+The important learning shift is that Spore is not merely a marketplace asset format. It is a **cell-native digital object model**, where the object, its ownership, its content, and its redeemable value all live inside the same CKB design space.
 
-The UI retains equivalent historical `ckb-cli` commands while clearly labeling the workflow as educational rather than current production deployment guidance.
+### How this connects to previous work
 
-### Accounting proof
+The SUDT and DAO labs both taught that a type script gives meaning to cell data. Spore extends that lesson:
 
-The proof executes the complete tutorial and checks every state transition against the supply invariant:
+- SUDT cell data means "amount of this fungible token."
+- DAO cell data means "deposit or withdrawal state."
+- Spore cell data means "digital object content and metadata."
+
+So the Week 6 work starts to unify the mental model:
 
 ```text
-Issued: 2300 SUDT
-Alice: 1200 SUDT
-Bob: 1100 SUDT
-Pending cheques: 0
-Elapsed time: 6 epochs
+Cell capacity = economic backing
+Cell lock     = ownership and spend authority
+Cell type     = asset/protocol rule
+Cell data     = object state or object content
 ```
 
-**Verification entry point:**
+---
+
+## DOB Protocol research: from stored data to interpretable objects
+
+The second area of work was DOB, especially the DOB/0 and DOB/1 protocol family.
+
+The key insight is that a digital object is not useful only because bytes are stored on-chain. Applications need a standard way to interpret those bytes. DOB provides this interpretation layer.
+
+### DOB/0
+
+DOB/0 introduces the base model for interpreting a digital object:
+
+- **DNA** - the core data structure of the object,
+- **Pattern** - the schema or template used to interpret that data,
+- **Decoder** - the logic that reads the DNA and produces meaningful attributes.
+
+This matters because it separates raw storage from meaning. The same cell-model foundation can support many object types if applications agree on how to decode them.
+
+### DOB/1
+
+DOB/1 adds a rendering-oriented layer, especially around SVG output. The working goal for the planned lab is to show how DOB attributes can become a visual object, not only JSON-style metadata.
+
+The intended lab flow is:
+
+```text
+Spore cell data
+  -> DOB DNA
+  -> Pattern
+  -> Decoder
+  -> attributes
+  -> rendered preview
+```
+
+This is a natural continuation of the DAO Observatory's "cell anatomy" view, but applied to a richer object.
+
+---
+
+## DOB Cookbook pass: implementation patterns and visual effects
+
+The `sporeprotocol/dob-cookbook` repository was reviewed as the practical implementation source for DOB issuers. The cookbook is useful because it moves beyond abstract definitions and shows how DOB issuers structure examples, best practices, and rendering effects.
+
+The working extraction from the cookbook is:
+
+1. define an object pattern,
+2. encode traits into DNA,
+3. decode the DNA deterministically,
+4. render a preview,
+5. keep issuer-side conventions understandable for downstream apps.
+
+The implementation starts with a small DOB object rather than an overbuilt collection. The first version of the lab focuses on clarity:
+
+- generate a small deterministic DNA payload,
+- decode that payload into traits,
+- render a simple SVG visual result,
+- show where the payload sits in a Spore-like cell,
+- show which parts belong to Spore and which parts belong to DOB.
+
+This keeps the implementation close to the cookbook direction while still matching the style of the previous interactive labs.
+
+---
+
+## Spore SDK exploration: create, transfer, melt, and data handling
+
+The Spore SDK documentation was mapped into an implementation checklist. The SDK is TypeScript-based and exposes tools for interacting with Spores and Clusters, composing transactions, and encoding or decoding Spore/Cluster data.
+
+### Recipes selected for replication
+
+The how-to recipe categories were scoped into four workflows:
+
+| Recipe area | Planned lab representation |
+|-------------|----------------------------|
+| Create | construct a new Spore object with content and capacity |
+| Transfer | move ownership to another lock while preserving object identity |
+| Melt | redeem the Spore back into CKB capacity |
+| Data | inspect content type, payload, and decoded object fields |
+
+The implementation target is not a production wallet. It is a controlled learning environment that explains transaction anatomy:
+
+- inputs required,
+- outputs created,
+- type script role,
+- lock script ownership,
+- content payload,
+- capacity margin,
+- melt path.
+
+### Browser/tooling consideration
+
+Because the Spore SDK is designed for TypeScript and browser usage but may require Node polyfills in web environments, this week also included architecture planning around where the lab should run:
+
+- **offline simulator first** for deterministic learning,
+- **SDK-backed script second** for devnet or testnet experiments,
+- **browser UI third** after the transaction model is stable.
+
+The first step is now complete: `spore-dob-lab/` proves the model offline and exposes it in a browser UI.
+
+---
+
+## SSRI research: scripts as information sources, not only verifiers
+
+The second major research track was **Script-Sourced Rich Information (SSRI)**.
+
+This connects directly to the Rust script work from last week. Previously, scripts were treated primarily as verifiers: a script accepts or rejects a transaction. SSRI adds another mental model: scripts can also expose standardized information and helper behavior to off-chain applications.
+
+### Core SSRI ideas studied
+
+| SSRI idea | Current understanding |
+|----------|----------------------|
+| Script-sourced information | scripts can describe behavior or metadata rather than only validate |
+| Method paths | methods are addressed by the first 8 bytes of the CKB hash of a method signature |
+| Trait-style behavior | scripts can implement standard method groups, similar to Rust traits |
+| Off-chain execution | a script can run in CKB-VM outside a transaction to return structured information |
+| Interoperability | applications can query scripts for metadata, cell deps, supported methods, or transaction-building hints |
+
+This is especially relevant after the SUDT work. Token metadata is often duplicated off-chain. SSRI suggests a stronger model where information such as symbol, decimals, methods, or required dependencies can be sourced from the script itself.
+
+### `ckb-ssri-std`
+
+The `ckb-ssri-std` crate was identified as the Rust-side standard library entry point for experimenting with SSRI-style scripts. The planned follow-up is to add a small Rust script that can:
+
+- keep normal verifier behavior when no method is requested,
+- respond to a small set of SSRI method paths,
+- expose at least a `version` method,
+- expose a method list,
+- demonstrate how script behavior can be queried off-chain.
+
+This will connect the existing `rust-script-lab` to the new SSRI track instead of starting from scratch.
+
+---
+
+## Implemented artifact: Spore / DOB / SSRI Observatory
+
+The major deliverable is a new lab that combines the above threads.
+
+### Planned modules
+
+| Module | Purpose |
+|--------|---------|
+| Spore Cell Anatomy | shows capacity, lock, type, content type, data payload, cluster id, and owner |
+| Create Flow | simulates a Spore-like creation transaction with intrinsic CKB backing |
+| Transfer Flow | shows object identity preserved while lock ownership changes |
+| Melt Flow | shows intrinsic value redemption back into ordinary CKB |
+| DOB Decoder | turns DNA/pattern data into visible traits |
+| DOB Renderer | renders a deterministic SVG-style object preview |
+| SSRI Explorer | shows how scripts can expose rich information through method paths |
+
+The goal is the same as the DAO Observatory: not just a form, but an explanation of the hidden protocol mechanics.
+
+### Current implementation status
+
+The first implementation pass is complete:
+
+- `spore-dob-lab/` scaffold created,
+- deterministic Spore lifecycle model implemented,
+- create, transfer, and melt flows implemented,
+- object identity and capacity conservation checks implemented,
+- DOB DNA decoder implemented,
+- deterministic SVG renderer implemented,
+- transaction anatomy panel implemented,
+- SSRI demo method explorer implemented,
+- lifecycle proof added,
+- TypeScript and production build verified.
+
+The proof currently checks object identity, capacity conservation, DOB decoding, transfer, melt, and SSRI method lookup.
 
 ```powershell
-cd sudt-operations-lab
+cd spore-dob-lab
 npm run run:all
 ```
 
-**Learning outcome:** fungible tokens on CKB are not account balances stored in a contract. They are amounts encoded in live cells, with type scripts preserving supply and lock scripts providing different payment behaviors.
-
----
-
-## DAO Observatory: connecting wallet UX to the system script
-
-The final project of the week was `dao-observatory/`, inspired by the NervDAO application and grounded in the canonical `dao.c` implementation from `ckb-system-scripts`.
-
-Instead of reproducing only a deposit form, the application exposes the complete protocol state machine:
+Verification result:
 
 ```text
-Wallet -> Deposited -> Withdrawing -> Withdrawn
+Spore/DOB/SSRI lifecycle proof passed.
+Final collector wallet: 1,642.9997 CKB
+SSRI demo method path: 0xe9801f12d29c26a0
 ```
-
-### Deposit phase
-
-A deposit creates a cell with:
-
-- the Nervos DAO type script,
-- empty script arguments,
-- eight zero bytes in cell data,
-- enough capacity to cover the cell's occupied storage.
-
-The simulator separates occupied capacity from the capacity eligible for compensation.
-
-### Phase-one redemption
-
-Redeeming does not immediately return liquid CKB. It consumes the deposit cell and creates a withdrawing cell:
-
-- at the same output index,
-- with the same capacity,
-- with the original deposit block number stored as an eight-byte little-endian value.
-
-The withdrawal header fixes the DAO accumulate rate used for compensation. This means compensation **stops increasing when phase one is committed**, even if the cell must continue waiting for maturity.
-
-### Maturity and final withdrawal
-
-The claim epoch is rounded to a 180-epoch checkpoint measured from the original deposit epoch. Final withdrawal requires:
-
-- the deposit and withdrawal headers,
-- the correct deposit header index in the witness,
-- an absolute epoch `since` value,
-- a chain epoch at or beyond the calculated checkpoint,
-- outputs that do not exceed the script-calculated maximum withdrawal capacity.
-
-The application surfaces these checks as live `dao.c` validation gates rather than hiding them behind a wallet button.
-
-### Compensation formula
-
-The modeled formula follows the system script:
-
-```text
-maximum withdrawal =
-  occupied capacity
-  + (original capacity - occupied capacity)
-    * withdrawal AR / deposit AR
-```
-
-The deterministic proof deposits 10,000 CKB, initiates redemption at epoch 1170, rounds the claim epoch to 1180, freezes compensation at `21.51346118 CKB`, and rejects final release until the maturity condition is reached.
-
-**Verification entry point:**
-
-```powershell
-cd dao-observatory
-npm run run:all
-```
-
-**Learning outcome:** the Nervos DAO is a two-transaction protocol enforced by cell data, header dependencies, epoch locks, and capacity accounting. The wallet interface is only the top layer of that mechanism.
 
 ---
 
-## How the week fits together
+## Why this matters for the CKBuilders arc
 
-| Layer | Deliverable | Main lesson |
-|-------|-------------|-------------|
-| Validation model | `script-course-lab` | Which lock and type scripts execute |
-| Native script development | `rust-script-lab` | Building and testing RISC-V scripts |
-| Token protocol | `sudt-operations-lab` | Supply conservation across ACP and cheque cells |
-| Monetary protocol | `dao-observatory` | Header-based compensation and epoch-locked withdrawal |
+This week's work pushes the learning journey into a more advanced part of CKB application design.
 
-The projects form a progression:
+Earlier weeks answered:
 
-- The script course explains the execution rules.
-- The Rust lab places real code inside those rules.
-- The SUDT lab shows a type script coordinating token cells.
-- The DAO lab shows a system type script using headers, cell data, and `since` to enforce monetary policy.
+- How do scripts validate transactions?
+- How do cells hold value?
+- How do tokens move?
+- How does the DAO enforce monetary policy?
+
+This week begins answering:
+
+- How do cells hold rich digital objects?
+- How do applications interpret those objects consistently?
+- How can digital objects carry intrinsic redeemable value?
+- How can scripts expose metadata and behavior to applications?
+- How do DOB and SSRI reduce off-chain convention drift?
+
+That is the core progression: from **cell mechanics** to **cell-native objects**.
 
 ---
 
-## Consolidated outcomes
+## Consolidated progress
 
-1. **Validation literacy:** lock scripts, type scripts, script grouping, and output-lock behavior are represented as runnable checks.
-2. **CKB-VM literacy:** Rust contracts can be compiled for RISC-V and tested without a live chain.
-3. **Token literacy:** SUDT supply remains conserved while ACP and cheque locks provide different transfer semantics.
-4. **DAO literacy:** redemption is a two-phase process, compensation freezes at phase one, and maturity is enforced through absolute epoch `since`.
-5. **Teaching-tool discipline:** complex protocol documentation was converted into interactive applications backed by deterministic proofs.
-6. **Windows reliability:** repeatable PowerShell entry points document the debugger, compiler, and test-tool requirements.
+1. **Spore literacy implemented:** Spore has been modeled as a one-cell digital object with intrinsic CKB backing and meltability.
+2. **DOB literacy implemented:** DOB-style DNA decoding and SVG rendering now exist in the lab.
+3. **Cookbook analysis applied:** the lab uses a small reproducible object flow rather than an overbuilt collection.
+4. **SDK planning represented:** create, transfer, melt, and data flows are exposed as transaction-anatomy modules.
+5. **SSRI research implemented:** method paths and script-sourced responses are represented in an SSRI explorer.
+6. **New lab delivered:** `spore-dob-lab/` is now the Week 6 artifact.
 
 ---
 
 ## Next steps
 
-- Connect selected simulations to an OffCKB devnet while preserving the offline proof mode.
-- Compare the historical SUDT workflow with current xUDT tooling and extension capabilities.
-- Add transaction serialization views showing the exact inputs, outputs, witnesses, header dependencies, and `since` values.
-- Continue the script course with more complex type-script validation and contract testing.
-- Add focused tests for invalid SUDT and DAO transitions, not only successful lifecycle proofs.
+- Add a real Spore SDK-backed script once the devnet/testnet target is chosen.
+- Compare the offline transaction anatomy with actual `@spore-sdk/core` transaction skeletons.
+- Extend `rust-script-lab` with a minimal SSRI-oriented script experiment.
+- Replace the browser demo SSRI path function with production CKB-hash-compatible method paths in the Rust experiment.
+- Add negative tests for invalid DNA, exhausted capacity margin, and unauthorized melt/transfer attempts.
 
 ---
 
 ## References
 
-- [CKB Script Course: Validation Model](https://docs.nervos.org/docs/script-course/intro-to-script-1)
-- [CKB Script Course: Script Basics](https://docs.nervos.org/docs/script-course/intro-to-script-2)
-- [CKB Rust Script Quick Start](https://docs.nervos.org/docs/script/rust/rust-quick-start)
-- [CKB CLI SUDT Operations Tutorial](https://github.com/nervosnetwork/ckb-cli/wiki/UDT-%28sudt%29-Operations-Tutorial)
-- [RFC 0025: Simple UDT](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0025-simple-udt/0025-simple-udt.md)
-- [RFC 0026: Anyone Can Pay](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0026-anyone-can-pay/0026-anyone-can-pay.md)
-- [RFC 0038: CKB Cheque Lock](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0038-ckb-cheque-lock/0038-ckb-cheque-lock.md)
-- [NervDAO](https://github.com/ckb-devrel/nervdao)
-- [Nervos DAO system script](https://github.com/nervosnetwork/ckb-system-scripts/blob/master/c/dao.c)
-- [RFC 0023: DAO Deposit and Withdraw](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0023-dao-deposit-withdraw/0023-dao-deposit-withdraw.md)
+- [Spore Protocol - Nervos Docs](https://docs.nervos.org/docs/tech-explanation/spore-protocol)
+- [Spore Protocol Docs](https://docs.spore.pro/)
+- [DOB Cookbook](https://github.com/sporeprotocol/dob-cookbook)
+- [Spore How-to Recipes](https://docs.spore.pro/category/how-to-recipes)
+- [Spore SDK](https://docs.spore.pro/resources/spore-sdk)
+- [Script-Sourced Rich Information discussion](https://talk.nervos.org/t/en-cn-script-sourced-rich-information-script/8256/2)
+- [`ckb-ssri-std` crate](https://crates.io/crates/ckb-ssri-std)
