@@ -235,6 +235,10 @@ The first implementation pass is complete:
 - deterministic SVG renderer implemented,
 - transaction anatomy panel implemented,
 - SSRI demo method explorer implemented,
+- `@spore-sdk/core` added for SDK-facing checks,
+- SporeData encode/decode round-trip implemented with the SDK,
+- create/transfer/melt SDK recipe-shape script added,
+- `rust-script-lab` extended with an SSRI method dispatch demo,
 - lifecycle proof added,
 - TypeScript and production build verified.
 
@@ -251,7 +255,54 @@ Verification result:
 Spore/DOB/SSRI lifecycle proof passed.
 Final collector wallet: 1,642.9997 CKB
 SSRI demo method path: 0xe9801f12d29c26a0
+Spore SDK data round-trip passed.
+Spore SDK recipe surface is available.
+SSRI method dispatch demo passed.
 ```
+
+---
+
+## RGB++ Observatory: Bitcoin seals with CKB programmable state
+
+The next major addition is `rgbpp-observatory/`, an offline-first lab for the RGB++ Protocol. This extends the Week 6 digital-object work into Bitcoin-linked assets and demonstrates how RGB++ combines Bitcoin's UTXO security model with CKB's script programmability.
+
+The lab models the central RGB++ transaction flow:
+
+```text
+off-chain computation
+  -> Bitcoin transaction with OP_RETURN commitment
+  -> CKB transaction with RGB++ state transition
+  -> on-chain verification through RGB++ script gates
+```
+
+### Concepts implemented
+
+| Concept | Lab representation |
+|---------|--------------------|
+| Single-use seal | a Bitcoin UTXO is consumed exactly once when ownership changes |
+| Isomorphic binding | each active Bitcoin UTXO maps to one active CKB cell |
+| OP_RETURN commitment | the Bitcoin transaction commits to the CKB state transition |
+| SPV verification | validation gate checks Bitcoin transaction witness/proof shape |
+| CKB state validation | the RGB++ xUDT amount remains conserved while owner seals rotate |
+| Explorer view | the UI shows paired BTC/CKB transactions and binding history |
+
+The proof executes Alice -> Bob -> Alice transfers and checks seal rotation, CKB/Bitcoin ownership alignment, OP_RETURN commitment matching, SPV gate status, and RGB++ xUDT amount conservation.
+
+```powershell
+cd rgbpp-observatory
+npm run run:all
+```
+
+Verification result:
+
+```text
+RGB++ paired transaction proof passed.
+Active owner: alice
+Bitcoin tx count: 2
+CKB tx count: 2
+```
+
+This work connects directly to the RGB++ documentation: Bitcoin UTXOs provide the single-use ownership seal, while CKB cells store programmable asset state and validate transitions through scripts.
 
 ---
 
@@ -273,8 +324,9 @@ This week begins answering:
 - How can digital objects carry intrinsic redeemable value?
 - How can scripts expose metadata and behavior to applications?
 - How do DOB and SSRI reduce off-chain convention drift?
+- How can Bitcoin UTXO ownership be bound to CKB script-validated state?
 
-That is the core progression: from **cell mechanics** to **cell-native objects**.
+That is the core progression: from **cell mechanics** to **cell-native objects** to **Bitcoin-secured programmable assets**.
 
 ---
 
@@ -284,18 +336,21 @@ That is the core progression: from **cell mechanics** to **cell-native objects**
 2. **DOB literacy implemented:** DOB-style DNA decoding and SVG rendering now exist in the lab.
 3. **Cookbook analysis applied:** the lab uses a small reproducible object flow rather than an overbuilt collection.
 4. **SDK planning represented:** create, transfer, melt, and data flows are exposed as transaction-anatomy modules.
-5. **SSRI research implemented:** method paths and script-sourced responses are represented in an SSRI explorer.
-6. **New lab delivered:** `spore-dob-lab/` is now the Week 6 artifact.
+5. **SSRI research implemented:** method paths and script-sourced responses are represented in an SSRI explorer and a Rust-script-lab dispatch demo.
+6. **RGB++ literacy implemented:** single-use seals, isomorphic binding, OP_RETURN commitments, and SPV gates are represented in `rgbpp-observatory/`.
+7. **New labs delivered:** `spore-dob-lab/` and `rgbpp-observatory/` are now the Week 6 artifacts.
 
 ---
 
 ## Next steps
 
-- Add a real Spore SDK-backed script once the devnet/testnet target is chosen.
-- Compare the offline transaction anatomy with actual `@spore-sdk/core` transaction skeletons.
-- Extend `rust-script-lab` with a minimal SSRI-oriented script experiment.
-- Replace the browser demo SSRI path function with production CKB-hash-compatible method paths in the Rust experiment.
+- Add a real transaction-building Spore SDK script once the devnet/testnet target is chosen.
+- Compare the offline transaction anatomy with actual `@spore-sdk/core` transaction skeletons from a funded account.
+- Move the SSRI dispatch demo from JavaScript into a minimal Rust/CKB-VM contract experiment.
+- Replace the browser demo SSRI path function with production CKB-hash-compatible method paths.
 - Add negative tests for invalid DNA, exhausted capacity margin, and unauthorized melt/transfer attempts.
+- Connect `rgbpp-observatory` to a real RGB++ SDK flow once a testnet Bitcoin UTXO and CKB account are available.
+- Add a btc-assets-api read-only probe for real RGB++ assets and transactions.
 
 ---
 
@@ -308,3 +363,7 @@ That is the core progression: from **cell mechanics** to **cell-native objects**
 - [Spore SDK](https://docs.spore.pro/resources/spore-sdk)
 - [Script-Sourced Rich Information discussion](https://talk.nervos.org/t/en-cn-script-sourced-rich-information-script/8256/2)
 - [`ckb-ssri-std` crate](https://crates.io/crates/ckb-ssri-std)
+- [RGB++ Introduction](https://rgbpp.com/docs/introduction)
+- [RGB++ Resources](https://rgbpp.com/docs/resources)
+- [RGB++ Light Paper](https://talk.nervos.org/t/rgb-protocol-light-paper-translation/7790)
+- [RGB++ Explorer](https://explorer.rgbpp.io/en)

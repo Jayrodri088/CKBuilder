@@ -13,6 +13,8 @@ real Spore SDK or wallet flow would later connect to:
 - decode DOB DNA into traits,
 - render a deterministic SVG preview,
 - explore SSRI-style method paths and script-sourced responses.
+- round-trip DOB payloads through `@spore-sdk/core` SporeData utilities.
+- inspect the SDK create/transfer/melt recipe payload shapes.
 
 ## Run
 
@@ -25,6 +27,16 @@ npm start
 
 ```powershell
 npm run run:all
+```
+
+The full check runs TypeScript, the lifecycle proof, SDK SporeData round-trip,
+SDK recipe-surface check, and production build.
+
+Individual SDK checks:
+
+```powershell
+npm run sdk:data
+npm run sdk:recipes
 ```
 
 The proof checks object identity, capacity conservation, DOB decoding, transfer,

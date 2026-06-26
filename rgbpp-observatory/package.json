@@ -1,5 +1,5 @@
 {
-  "name": "spore-dob-lab",
+  "name": "rgbpp-observatory",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,13 +7,10 @@
     "start": "parcel index.html --no-cache",
     "build": "parcel build index.html --dist-dir dist --public-url ./",
     "lint": "tsc --noEmit",
-    "proof": "tsx ./scripts/proof-lifecycle.ts",
-    "sdk:data": "tsx ./scripts/sdk-spore-data.ts",
-    "sdk:recipes": "tsx ./scripts/sdk-recipe-shapes.ts",
-    "run:all": "npm run lint && npm run proof && npm run sdk:data && npm run sdk:recipes && npm run build"
+    "proof": "tsx ./scripts/proof-rgbpp-flow.ts",
+    "run:all": "npm run lint && npm run proof && npm run build"
   },
   "dependencies": {
-    "@spore-sdk/core": "^0.1.0",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "react": "^18.3.1",

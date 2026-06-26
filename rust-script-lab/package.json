@@ -6,6 +6,7 @@
   "scripts": {
     "build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build.ps1",
     "check:debugger": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-debugger.ps1",
+    "ssri:demo": "node ./scripts/ssri-method-demo.mjs",
     "test": "cargo test --package tests -- --nocapture",
     "run:all": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-all.ps1"
   }
