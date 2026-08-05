@@ -1,0 +1,26 @@
+{
+  "name": "fiber-pulse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Consumer Fiber pay MVP — request, preflight, pay (mock-first, optional live RPC)",
+  "scripts": {
+    "dev": "next dev -p 3060",
+    "build": "next build",
+    "start": "next start -p 3060",
+    "check:fiber": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-fiber-rpc.ps1",
+    "run:all": "node ./scripts/run-all.mjs"
+  },
+  "dependencies": {
+    "next": "15.5.15",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.9",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.8.3"
+  }
+}

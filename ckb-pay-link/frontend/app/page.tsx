@@ -37,10 +37,26 @@ function PayLinkApp() {
   const [error, setError] = useState<string>();
   const [txHash, setTxHash] = useState<string>();
   const [claiming, setClaiming] = useState(false);
+  const [fromPulse, setFromPulse] = useState(false);
 
   const payerAddress = searchParams.get("address") ?? lockAddress;
   const payerAmount = searchParams.get("amount") ?? amountCkb;
   const payerLabel = searchParams.get("label") ?? label;
+
+  // Prefill from Fiber Pulse L1 handoff: ?view=create&from=pulse&amount=&label=&preimage=
+  useEffect(() => {
+    const view = searchParams.get("view");
+    if (view === "create" || searchParams.get("from") === "pulse") {
+      setTab("create");
+    }
+    if (searchParams.get("from") === "pulse") setFromPulse(true);
+    const qAmount = searchParams.get("amount");
+    const qLabel = searchParams.get("label");
+    const qPreimage = searchParams.get("preimage");
+    if (qAmount) setAmountCkb(qAmount);
+    if (qLabel) setLabel(qLabel);
+    if (qPreimage) setPreimage(qPreimage);
+  }, [searchParams]);
 
   useEffect(() => {
     if (preimage) {
@@ -184,6 +200,12 @@ function PayLinkApp() {
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6">
             <h2 className="text-lg font-semibold text-white">New payment request</h2>
+            {fromPulse && (
+              <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+                Prefilled from Pulse L1 handoff — amount, label, and preimage are set.
+                Keep the preimage secret; share only the payer link after the lock address appears.
+              </p>
+            )}
             <label className="mt-4 block text-sm text-slate-300">Label</label>
             <input
               value={label}
