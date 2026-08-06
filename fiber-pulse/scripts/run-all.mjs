@@ -22,6 +22,14 @@ run("pay-codec proof", "node", ["scripts/prove-codec.mjs"]);
 run("L1 handoff proof", "node", ["scripts/prove-l1-handoff.mjs"]);
 run("typecheck", "pnpm", ["exec", "tsc", "--noEmit"]);
 
+console.log("\n--- live L1 (OffCKB) — skip if RPC down ---\n");
+{
+  const code = run("prove-l1-live", "node", ["scripts/prove-l1-live.mjs"], {
+    allowFail: true,
+  });
+  if (code === 1) process.exit(1);
+}
+
 console.log("\n--- optional Fiber RPC (not required) ---\n");
 run(
   "check:fiber",
@@ -37,7 +45,9 @@ for (const rel of [
   "lib/mock-node.ts",
   "lib/pay-codec.ts",
   "lib/l1-fallback.ts",
+  "lib/l1-lock.ts",
   "lib/session-grant.ts",
+  "deployment/scripts.json",
   "components/QrCode.tsx",
 ]) {
   if (!fs.existsSync(path.join(root, rel))) {

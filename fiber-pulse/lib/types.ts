@@ -23,6 +23,11 @@ export interface PaymentRequest {
   /** Merchant-only secret for L1 hash-lock handoff */
   l1Preimage?: string;
   l1HandoffUrl?: string;
+  /** Derived hash-lock address (when CKB + deployment available) */
+  l1LockAddress?: string;
+  l1Hash?: string;
+  /** Payer-facing Pay Link URL (address + amount + label) */
+  l1PayerUrl?: string;
 }
 
 export interface PreflightResult {

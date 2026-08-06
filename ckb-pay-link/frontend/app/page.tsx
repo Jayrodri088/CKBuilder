@@ -18,12 +18,16 @@ import { FiberPanel } from "./fiber-panel";
 
 type Tab = "create" | "payer" | "claim" | "fiber";
 
+function initialView(view: string | null): Tab {
+  if (view === "payer" || view === "create" || view === "claim" || view === "fiber") {
+    return view;
+  }
+  return "create";
+}
+
 function PayLinkApp() {
   const searchParams = useSearchParams();
-  const initialTab: Tab =
-    searchParams.get("view") === "payer" ? "payer" : "create";
-
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>(() => initialView(searchParams.get("view")));
   const [label, setLabel] = useState("Weekend invoice");
   const [preimage, setPreimage] = useState("Hello World");
   const [hash, setHash] = useState("");
@@ -43,19 +47,21 @@ function PayLinkApp() {
   const payerAmount = searchParams.get("amount") ?? amountCkb;
   const payerLabel = searchParams.get("label") ?? label;
 
-  // Prefill from Fiber Pulse L1 handoff: ?view=create&from=pulse&amount=&label=&preimage=
+  // Prefill from Pulse: ?view=create|payer|claim&from=pulse&amount=&label=&preimage=&address=&claimTo=
   useEffect(() => {
     const view = searchParams.get("view");
-    if (view === "create" || searchParams.get("from") === "pulse") {
-      setTab("create");
-    }
+    setTab(initialView(view));
     if (searchParams.get("from") === "pulse") setFromPulse(true);
     const qAmount = searchParams.get("amount");
     const qLabel = searchParams.get("label");
     const qPreimage = searchParams.get("preimage");
+    const qClaimTo = searchParams.get("claimTo");
+    const qAddress = searchParams.get("address");
     if (qAmount) setAmountCkb(qAmount);
     if (qLabel) setLabel(qLabel);
     if (qPreimage) setPreimage(qPreimage);
+    if (qClaimTo) setClaimTo(qClaimTo);
+    if (qAddress && view === "claim") setLockAddress(qAddress);
   }, [searchParams]);
 
   useEffect(() => {
@@ -303,6 +309,12 @@ function PayLinkApp() {
           <p className="mt-1 text-sm text-slate-400">
             Use the same preimage and amount as when you created the request.
           </p>
+          {fromPulse && (
+            <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+              Opened from Pulse L1 handoff — preimage and amount are prefilled. Confirm
+              lock balance, set receiver, then claim.
+            </p>
+          )}
           <p className="mt-3 text-xs text-slate-500">
             Lock: <span className="font-mono text-slate-300">{lockAddress || "—"}</span>
           </p>

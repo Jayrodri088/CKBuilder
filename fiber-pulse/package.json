@@ -8,9 +8,13 @@
     "build": "next build",
     "start": "next start -p 3060",
     "check:fiber": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-fiber-rpc.ps1",
+    "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
+    "prove:l1-live": "node ./scripts/prove-l1-live.mjs",
+    "sync:deployment": "node ./scripts/sync-deployment.mjs",
     "run:all": "node ./scripts/run-all.mjs"
   },
   "dependencies": {
+    "@ckb-ccc/core": "^1.9.0",
     "next": "15.5.15",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

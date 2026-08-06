@@ -15,13 +15,21 @@ pnpm run dev
 
 Open http://127.0.0.1:3060 — stop with `Ctrl+C` when done.
 
-## Test today
+## Test (OffCKB up)
+
+```powershell
+pnpm run sync:deployment
+pnpm run prove:l1-live
+pnpm run dev
+```
 
 1. Set a **session spend cap**.
 2. Create a payment → open as payer.
-3. Try an amount larger than **You can send** → see fixes → **Switch to L1 rail**.
-4. Copy preimage → **Open Pay Link** (run `ckb-pay-link` on `:3000` to view the prefilled create tab).
-5. Or pay on Fiber mock → receipt + capacity/session updates.
+3. **Switch to L1 rail** (or force a Fiber capacity block first).
+4. Confirm **lock address + QR** (live derive against `:28114`).
+5. Fund via OffCKB faucet → **Fund check** should show **funded**.
+6. Start `ckb-pay-link` on `:3000` → **Open claim** (prefilled) → claim to receiver.
+7. Or pay on Fiber mock → receipt + capacity/session updates.
 
 Optional: `NEXT_PUBLIC_PAY_LINK_ORIGIN` (default `http://127.0.0.1:3000`), Fiber probe on `:8227`.
 

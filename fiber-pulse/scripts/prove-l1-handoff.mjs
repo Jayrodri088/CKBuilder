@@ -27,3 +27,28 @@ assert.equal(u.searchParams.get("amount"), "2.5");
 assert.equal(u.searchParams.get("preimage"), "pulse-deadbeef");
 assert.equal(u.searchParams.get("label"), "Coffee");
 console.log("OK: L1 handoff URL", url);
+
+function buildPayLinkClaimUrl(params) {
+  const q = new URLSearchParams({
+    view: "claim",
+    from: "pulse",
+    preimage: params.preimage,
+    amount: params.amount,
+    label: params.label,
+    address: params.address,
+  });
+  return `http://127.0.0.1:3000/?${q.toString()}`;
+}
+
+const claim = new URL(
+  buildPayLinkClaimUrl({
+    preimage: "pulse-deadbeef",
+    amount: "2.5",
+    label: "Coffee",
+    address: "ckt1qyqexample",
+  }),
+);
+assert.equal(claim.searchParams.get("view"), "claim");
+assert.equal(claim.searchParams.get("preimage"), "pulse-deadbeef");
+assert.equal(claim.searchParams.get("address"), "ckt1qyqexample");
+console.log("OK: L1 claim URL", claim.toString());

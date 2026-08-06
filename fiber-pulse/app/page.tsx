@@ -30,6 +30,13 @@ import {
   generatePreimage,
 } from "@/lib/l1-fallback";
 import {
+  buildPayLinkClaimUrl,
+  buildPayLinkPayerUrl,
+  deriveLockAddress,
+  scriptDeployed,
+} from "@/lib/l1-lock";
+import { L1FundMonitor } from "@/components/L1FundMonitor";
+import {
   assertSessionAllows,
   loadSessionGrant,
   recordSessionSpend,
@@ -67,6 +74,7 @@ function PulseApp() {
   const [sessionCap, setSessionCapInput] = useState("20");
   const [session, setSession] = useState<SessionGrant | null>(null);
   const [l1Copied, setL1Copied] = useState(false);
+  const [l1ClaimUrl, setL1ClaimUrl] = useState<string>();
 
   const refreshNode = useCallback(() => {
     setNode(loadMockNode());
@@ -109,6 +117,18 @@ function PulseApp() {
     if (!req) return;
     setError(undefined);
     setActive(req);
+    if (req.l1Preimage && req.l1LockAddress) {
+      setL1ClaimUrl(
+        buildPayLinkClaimUrl({
+          preimage: req.l1Preimage,
+          amount: String(req.amountCkb),
+          label: req.label,
+          address: req.l1LockAddress,
+        }),
+      );
+    } else {
+      setL1ClaimUrl(undefined);
+    }
     void (async () => {
       const pf = await runPreflight(req!, { tryLive });
       setPreflight(pf);
@@ -174,18 +194,51 @@ function PulseApp() {
 
   function switchToL1Rail() {
     if (!active) return;
+    setError(undefined);
     const preimage = active.l1Preimage ?? generatePreimage();
     const handoff = buildL1HandoffUrl(active, preimage);
+    let lockAddress: string | undefined;
+    let hash: string | undefined;
+    let payerUrl: string | undefined;
+    let claimUrl: string | undefined;
+    try {
+      if (!scriptDeployed()) {
+        throw new Error("hash-lock deployment missing — sync from ckb-pay-link");
+      }
+      const derived = deriveLockAddress(preimage);
+      lockAddress = derived.address;
+      hash = derived.hash;
+      payerUrl = buildPayLinkPayerUrl({
+        address: derived.address,
+        amount: String(active.amountCkb),
+        label: active.label,
+      });
+      claimUrl = buildPayLinkClaimUrl({
+        preimage,
+        amount: String(active.amountCkb),
+        label: active.label,
+        address: derived.address,
+      });
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? `${e.message} (create-tab handoff still available)`
+          : "L1 derive failed",
+      );
+    }
     const next: PaymentRequest = {
       ...active,
       rail: "l1",
       status: "l1_handoff",
       l1Preimage: preimage,
       l1HandoffUrl: handoff,
+      l1LockAddress: lockAddress,
+      l1Hash: hash,
+      l1PayerUrl: payerUrl,
     };
     saveRequest(next);
     setActive(next);
-    setError(undefined);
+    setL1ClaimUrl(claimUrl);
   }
 
   async function onPay() {
@@ -353,11 +406,43 @@ function PulseApp() {
             )}
             {onL1 && active.l1Preimage && active.l1HandoffUrl && (
               <div style={styles.l1Box}>
-                <strong style={{ fontFamily: "var(--font-display)" }}>L1 hash-lock handoff</strong>
-                <p style={{ ...styles.mute, margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                  Merchant secret (do not share with payer). Open Pay Link to derive the
-                  lock address when CKB + hash-lock script are available.
-                </p>
+                <strong style={{ fontFamily: "var(--font-display)" }}>L1 hash-lock rail</strong>
+                {active.l1LockAddress ? (
+                  <>
+                    <p style={{ ...styles.mute, margin: 0, fontSize: 12, lineHeight: 1.45 }}>
+                      Live lock address derived on this device. Share the payer link /
+                      QR with the payer — keep the preimage secret for claim.
+                    </p>
+                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+                      <QrCode
+                        value={
+                          active.l1PayerUrl ??
+                          `ckb:${active.l1LockAddress}?amount=${active.amountCkb}`
+                        }
+                        size={140}
+                      />
+                      <div style={{ flex: 1, minWidth: 180, display: "grid", gap: 6 }}>
+                        <span style={styles.mute}>Lock address</span>
+                        <code style={styles.shareCode}>{active.l1LockAddress}</code>
+                        <span style={{ ...styles.mute, fontSize: 12 }}>
+                          Amount {active.amountCkb} CKB · {active.label}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ ...styles.mute, margin: 0, fontSize: 12, lineHeight: 1.45 }}>
+                    Address not derived here — open Pay Link create (prefilled) when
+                    CKB + hash-lock deployment are available.
+                  </p>
+                )}
+                {active.l1LockAddress && (
+                  <L1FundMonitor
+                    address={active.l1LockAddress}
+                    amountCkb={active.amountCkb}
+                  />
+                )}
+                <span style={styles.mute}>Merchant preimage (secret)</span>
                 <code style={styles.shareCode}>{active.l1Preimage}</code>
                 <div style={styles.actions}>
                   <button
@@ -371,8 +456,28 @@ function PulseApp() {
                   >
                     {l1Copied ? "Copied secret" : "Copy preimage"}
                   </button>
-                  <a href={active.l1HandoffUrl} style={styles.primary} target="_blank" rel="noreferrer">
-                    Open Pay Link
+                  {active.l1PayerUrl && (
+                    <a
+                      href={active.l1PayerUrl}
+                      style={styles.secondary}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open payer view
+                    </a>
+                  )}
+                  {l1ClaimUrl && (
+                    <a
+                      href={l1ClaimUrl}
+                      style={styles.primary}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open claim
+                    </a>
+                  )}
+                  <a href={active.l1HandoffUrl} style={styles.secondary} target="_blank" rel="noreferrer">
+                    Open Pay Link create
                   </a>
                 </div>
               </div>
