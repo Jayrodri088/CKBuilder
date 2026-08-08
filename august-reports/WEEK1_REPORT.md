@@ -2,66 +2,95 @@
 
 ## Overview
 
-This report covers the **start** of the August track (week of **August 4, 2026** and ongoing). The theme is moving from Fiber as a **read-only probe** (Pay Link Phase A) toward a **consumer payment product** with a real **dual-rail** story: Fiber when capacity allows, L1 hash-lock when it does not.
+This report covers work from the week of **August 4, 2026**. After Pay Link’s Phase A Fiber probe, I shifted into Fiber Part 2 product work: a consumer pay flow where someone can create a request, share it, run preflight, settle when Fiber capacity allows, and fall back to L1 hash-lock when it does not.
 
-The week is **in progress** — not closed. Emphasis remains on learning outcomes and runnable artifacts, not a file listing.
-
----
-
-## Context: Fiber builder initiative — Part 2
-
-The July Fiber infrastructure sprint was **Part 1** (tools and SDKs). **Part 2** shifts to **product and consumer solutions** built on Fiber. August work aims at that product layer, continuing from Pay Link’s dual-rail story rather than starting a new infra toolkit.
-
-Private pattern research from the Part 1 submission wave is kept **local and gitignored** (not listed in reports or the app).
+The main deliverable is `fiber-pulse/`. Live Fiber invoice settle still depends on having the local FNN node up; the L1 dual-rail path is already proven on OffCKB.
 
 ---
 
-## Fiber Pulse — consumer pay MVP (expanding)
+## Context
 
-`fiber-pulse/` is the August product lab: create → share → preflight → Fiber mock settle, with an L1 escape hatch into hash-lock addresses / Pay Link.
+July’s Fiber track was infrastructure-heavy. Part 2 is about **product**. I did not want another toolkit catalog. I wanted something a user can actually try: amount, share link, countdown, and either a fast settle or a clear L1 backup.
 
-### What is working now
+I kept private Part 1 research notes local and gitignored. They are not in this report or the app.
+
+---
+
+## Fiber Pulse
+
+I built `fiber-pulse/` as a Next.js app on port **3060**.
+
+### What I shipped
 
 | Piece | Purpose |
 |--------|---------|
-| **Create / share / QR / countdown** | Self-contained `/?p=` pay links |
-| **MOCK / LIVE badge + capacity strip** | Honest mock Fiber liquidity model |
-| **Preflight + actionable fixes** | Block / warn before pay; plain-language next steps |
-| **Session spend cap** | Browser budget for demo spends |
-| **L1 rail (live)** | Switch to L1 → derive hash-lock address against OffCKB using synced Pay Link deployment |
-| **L1 QR + payer URL** | Share lock address / open Pay Link payer view |
-| **Fund check** | Poll lock balance every 10s; **Check now**; waiting / funded status |
-| **Claim handoff** | **Open claim** → Pay Link claim tab prefilled (preimage, amount, address) |
-| **Pay Link prefill** | create / payer / claim views accept `from=pulse` query params |
-| **`prove:l1-live`** | RPC + cell-dep + address derivation proof (verified on live tip) |
+| Create / share / QR / countdown | Self-contained `/?p=` pay links |
+| MOCK / LIVE badge + capacity strip | Honest mock Fiber liquidity |
+| Preflight + next-step fixes | Block or warn before pay |
+| Session spend cap | Browser budget for demo spends |
+| L1 rail | Derive hash-lock address from synced Pay Link deployment |
+| Fund check | Poll lock balance; waiting / funded |
+| Claim handoff | Open Pay Link claim with preimage, amount, address filled in |
+| Pay Link query prefs | `view=create\|payer\|claim` + `from=pulse` |
 
-### Live proof (this session)
+Fiber settle in the UI is still mock-first (feels like ~60ms). Live Fiber RPC is optional when FNN is listening on `:8227`.
 
-With OffCKB up on `:28114`:
+### L1 dual rail
 
-- Pay Link `preflight` passed (RPC + hash-lock cell dep live)
-- `fiber-pulse` `prove:l1-live` passed — tip seen, cell dep live, lock address derived from a Pulse preimage
+Switching to L1 reuses the same hash-lock path as Pay Link:
 
-Fiber FNN (`:8227`) was still down — expected; LIVE Fiber probe remains optional.
+1. Derive lock address from a merchant preimage.
+2. Share address / payer link / QR.
+3. Fund on OffCKB.
+4. Claim in Pay Link with the preimage.
 
-### Design intent
+I sync deployment JSON from `ckb-pay-link` so Pulse and Pay Link stay on the same cell deps.
 
-- **Product, not probe UI**
-- **Mock-first Fiber**, **live L1** when the node is up
-- **Dual rail:** Fiber when capacity allows; L1 hash-lock otherwise
+### Capacity lesson
 
-### Still open
+This hash-lock runs through **ckb_js_vm**, so the lock args are large. On my current deploy, a cell needs roughly **108+ CKB** occupied. If a claim leaves change, the lock also needs spare capacity (~claim amount + ~110 CKB funded).
 
-- Real Fiber `new_invoice` / `send_payment` when FNN is up  
-- Manual end-to-end fund + claim UI demo (faucet → fund lock → claim with preimage)  
-- Mobile pay-sheet polish  
+I raised Pay Link’s claim gate to **≥110 CKB** and added funding hints so a “100 CKB should work” demo does not fail for the wrong reason.
 
 ---
 
-## How to run / test
+## Screenshots
+
+### Pulse home — create a pay request
+
+![Pulse home](screenshots/pulse-home.png)
+
+### Payer view — mock Fiber preflight on a small invoice
+
+![Pulse payer](screenshots/pulse-payer.png)
+
+### L1 rail — Fiber capacity blocked, hash-lock backup with fund check
+
+![Pulse L1 rail](screenshots/pulse-l1-rail.png)
+
+---
+
+## What I verified
+
+With OffCKB on `http://127.0.0.1:28114`:
+
+| Check | Result |
+|--------|--------|
+| Pay Link `pnpm run preflight` | Pass (RPC + hash-lock cell dep live) |
+| `pnpm run prove:l1-live` | Pass (tip, cell dep, address derive) |
+| `pnpm run prove:l1-fund-claim` | Pass: deposit 320 CKB → funded → claim 200 CKB |
+| Codec / handoff / typecheck | Pass |
+
+Fund–claim proof tx: `0x79882b4a4ae10937d581ed9f2a23af03f63a8bc6e99e03d6540d88553b307f5c`.
+
+I did not exercise LIVE Fiber settle this week. The FNN binary and node config are already on the machine; next is starting that node and wiring real invoice / payment calls.
+
+---
+
+## How to run
 
 ```powershell
-# terminal 1 — already running for you
+# terminal 1
 offckb node
 
 # terminal 2
@@ -69,23 +98,41 @@ cd d:\CKB\Test\fiber-pulse
 pnpm run sync:deployment
 pnpm run run:all
 pnpm run prove:l1-live
+pnpm run prove:l1-fund-claim
 pnpm run dev
 ```
 
 1. Open http://127.0.0.1:3060  
-2. Create a pay request → open as payer  
-3. Force Fiber block (amount &gt; sendable) or click **Switch to L1 rail**  
-4. Confirm a **lock address + QR** appear (live derive)  
-5. Watch **Fund check** flip to **funded** after faucet/wallet send  
-6. Run Pay Link (`cd ../ckb-pay-link; pnpm run dev`) → **Open claim** from Pulse  
+2. Create a pay request (use ≥110 CKB for L1 tests)  
+3. Open as payer, or force a Fiber capacity block, then **Switch to L1 rail**  
+4. Confirm lock address + QR  
+5. Fund: `offckb deposit <lock> 320` (example when claiming 200)  
+6. Wait for **funded**, start Pay Link, **Open claim**  
 7. Set receiver → Claim  
 
-Stop Pulse/Pay Link with `Ctrl+C` when finished.
+Stop apps with `Ctrl+C` when finished.
+
+---
+
+## Outcomes
+
+1. Moved from Fiber-as-probe into a consumer-shaped pay product (`fiber-pulse`).
+2. Kept Fiber mock-honest while making the L1 backup path live on OffCKB.
+3. Proved the full L1 loop in script: deposit → fund check → claim.
+4. Documented the real capacity floor for this hash-lock deploy.
 
 ---
 
 ## Next
 
-1. Real Fiber path when FNN is available  
-2. UX polish (mobile sheet, clearer LIVE errors)  
-3. Optional: in-app claim when CCC signer is available without leaving Pulse  
+1. Start the local Fiber node and replace mock settle with real invoice / payment where channels allow.  
+2. Clearer LIVE Fiber errors when RPC is down.  
+3. Optional: claim from Pulse without leaving for Pay Link.
+
+---
+
+## References
+
+- [Run a Fiber Node](https://www.fiber.world/docs/quick-start/run-a-node)
+- [Fiber basic transfer](https://docs.fiber.world/docs/quick-start/basic-transfer)
+- Pay Link + simple-lock deployment in this repo (`ckb-pay-link/`, `simple-lock/`)

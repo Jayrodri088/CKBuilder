@@ -10,6 +10,7 @@
     "check:fiber": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-fiber-rpc.ps1",
     "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
     "prove:l1-live": "node ./scripts/prove-l1-live.mjs",
+    "prove:l1-fund-claim": "node ./scripts/prove-l1-fund-claim.mjs",
     "sync:deployment": "node ./scripts/sync-deployment.mjs",
     "run:all": "node ./scripts/run-all.mjs"
   },

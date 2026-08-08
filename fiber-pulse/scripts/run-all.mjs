@@ -28,6 +28,15 @@ console.log("\n--- live L1 (OffCKB) — skip if RPC down ---\n");
     allowFail: true,
   });
   if (code === 1) process.exit(1);
+  if (code === 0) {
+    const e2e = run(
+      "prove-l1-fund-claim",
+      "node",
+      ["scripts/prove-l1-fund-claim.mjs"],
+      { allowFail: true },
+    );
+    if (e2e === 1) process.exit(1);
+  }
 }
 
 console.log("\n--- optional Fiber RPC (not required) ---\n");

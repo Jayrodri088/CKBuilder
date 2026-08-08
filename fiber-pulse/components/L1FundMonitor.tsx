@@ -87,7 +87,11 @@ export function L1FundMonitor({
       )}
       {status === "waiting" && (
         <p style={{ margin: 0, fontSize: 12, color: "var(--mute)", lineHeight: 1.4 }}>
-          Waiting for the payer to fund this address (OffCKB faucet or wallet).
+          Waiting for funding. Devnet:{" "}
+          <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
+            offckb deposit &lt;lock&gt; {Math.max(320, Math.ceil(amountCkb + 110))}
+          </code>{" "}
+          (spare capacity helps claim leave a change cell).
         </p>
       )}
       {error && (

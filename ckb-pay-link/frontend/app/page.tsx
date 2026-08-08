@@ -33,7 +33,7 @@ function PayLinkApp() {
   const [hash, setHash] = useState("");
   const [lockAddress, setLockAddress] = useState("");
   const [balance, setBalance] = useState("0");
-  const [amountCkb, setAmountCkb] = useState("100");
+  const [amountCkb, setAmountCkb] = useState("200");
   const [claimTo, setClaimTo] = useState(
     "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqt435c3epyrupszm7khk6weq5lrlyt52lg48ucew",
   );
@@ -132,9 +132,10 @@ function PayLinkApp() {
     }
   };
 
+  // Hash-lock via ckb_js_vm has large args — occupied capacity is ~108 CKB on this deploy.
   const canClaim =
     scriptDeployed() &&
-    +amountCkb > 61 &&
+    +amountCkb >= 110 &&
     +balance >= +amountCkb &&
     lockAddress.length > 0 &&
     claimTo.length > 0 &&
@@ -283,7 +284,9 @@ function PayLinkApp() {
           <h2 className="text-lg font-semibold text-white">Pay this request</h2>
           <p className="mt-1 text-2xl font-bold text-emerald-300">{payerLabel}</p>
           <p className="mt-2 text-sm text-slate-400">
-            Send at least <strong className="text-white">{payerAmount} CKB</strong> to:
+            Send at least <strong className="text-white">{payerAmount} CKB</strong> to
+            the lock (fund ~claim + 110 CKB spare if you will claim a partial amount —
+            change cells for this hash-lock need ≥110 CKB):
           </p>
           <p className="mt-4 break-all rounded-lg bg-black/30 p-3 font-mono text-xs text-white">
             {payerAddress || "Open a payer link from Create tab"}

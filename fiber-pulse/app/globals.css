@@ -102,3 +102,45 @@ input {
 .rise-3 {
   animation: rise 0.9s 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* Pay-sheet mobile: compact stage, sticky primary actions */
+@media (max-width: 640px) {
+  .pay-stage {
+    gap: 18px !important;
+    padding-bottom: 88px;
+  }
+
+  .pay-orbit {
+    width: min(240px, 68vw) !important;
+  }
+
+  .pay-sheet {
+    padding: 16px !important;
+    border-radius: 18px !important;
+    gap: 10px !important;
+  }
+
+  .pay-sheet-actions {
+    position: sticky;
+    bottom: 12px;
+    z-index: 4;
+    padding: 10px;
+    margin: 4px -4px 0;
+    border-radius: 16px;
+    background: rgba(11, 13, 12, 0.88);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+  }
+
+  .pay-sheet-actions a,
+  .pay-sheet-actions button {
+    flex: 1 1 auto;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .l1-rail-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+}

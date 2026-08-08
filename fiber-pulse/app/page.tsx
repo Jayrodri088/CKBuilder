@@ -329,8 +329,8 @@ function PulseApp() {
           </span>
         </header>
 
-        <section style={styles.payStage} className="rise">
-          <div style={styles.orbit}>
+        <section style={styles.payStage} className="rise pay-stage">
+          <div style={styles.orbit} className="pay-orbit">
             <div className="pulse-ring" />
             <div className="pulse-ring delay" />
             <div style={styles.orbCore}>
@@ -346,7 +346,7 @@ function PulseApp() {
             </div>
           </div>
 
-          <div style={styles.sheet} className="rise-2">
+          <div style={styles.sheet} className="rise-2 pay-sheet">
             <div style={styles.sheetRow}>
               <span style={styles.mute}>Mode</span>
               <strong style={styles.mono}>
@@ -413,7 +413,10 @@ function PulseApp() {
                       Live lock address derived on this device. Share the payer link /
                       QR with the payer — keep the preimage secret for claim.
                     </p>
-                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+                    <div
+                      className="l1-rail-row"
+                      style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}
+                    >
                       <QrCode
                         value={
                           active.l1PayerUrl ??
@@ -426,6 +429,9 @@ function PulseApp() {
                         <code style={styles.shareCode}>{active.l1LockAddress}</code>
                         <span style={{ ...styles.mute, fontSize: 12 }}>
                           Amount {active.amountCkb} CKB · {active.label}
+                          {active.amountCkb < 110
+                            ? " · L1 cells need ≥110 CKB for this hash-lock"
+                            : ""}
                         </span>
                       </div>
                     </div>
@@ -444,7 +450,7 @@ function PulseApp() {
                 )}
                 <span style={styles.mute}>Merchant preimage (secret)</span>
                 <code style={styles.shareCode}>{active.l1Preimage}</code>
-                <div style={styles.actions}>
+                <div style={styles.actions} className="pay-sheet-actions">
                   <button
                     type="button"
                     style={styles.secondary}
