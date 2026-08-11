@@ -1,3 +1,5 @@
+import type { FiberSnapshot } from "./fiber-snapshot";
+
 export type PayMode = "invoice" | "stream";
 
 export type ConfidenceLevel = "high" | "medium" | "low" | "blocked";
@@ -37,4 +39,5 @@ export interface PreflightResult {
   reasons: string[];
   canPay: boolean;
   source: "mock" | "live";
+  snapshot?: FiberSnapshot;
 }

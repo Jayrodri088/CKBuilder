@@ -1,3 +1,5 @@
+import type { FiberSnapshot } from "./fiber-snapshot";
+
 export type MockChannel = {
   id: string;
   peerShort: string;
@@ -107,34 +109,20 @@ export async function probeLiveNode(): Promise<{
   ok: boolean;
   version?: string;
   channelCount?: number;
+  snapshot?: FiberSnapshot;
   error?: string;
 }> {
   try {
-    const res = await fetch("/api/fiber", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ method: "node_info", params: [] }),
-    });
+    const res = await fetch("/api/fiber", { cache: "no-store" });
     const body = await res.json();
-    if (!res.ok || body.error) {
-      return { ok: false, error: body.error?.message ?? `HTTP ${res.status}` };
-    }
-    let channelCount: number | undefined;
-    try {
-      const chRes = await fetch("/api/fiber", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ method: "list_channels", params: [{}] }),
-      });
-      const chBody = await chRes.json();
-      channelCount = chBody.result?.channels?.length ?? 0;
-    } catch {
-      channelCount = undefined;
+    if (!res.ok || !body.reachable) {
+      return { ok: false, error: body.error ?? `HTTP ${res.status}` };
     }
     return {
       ok: true,
-      version: body.result?.version ?? "live",
-      channelCount,
+      version: body.node?.version ?? "live",
+      channelCount: body.channels?.length ?? 0,
+      snapshot: body as FiberSnapshot,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "unreachable" };

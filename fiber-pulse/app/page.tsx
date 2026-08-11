@@ -11,6 +11,8 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PayMode, PaymentRequest, PreflightResult } from "@/lib/types";
+import type { FiberSnapshot } from "@/lib/fiber-snapshot";
+import type { PaymentProofReceipt } from "@/lib/payment-proof";
 import { getRequest, listRequests, newId, saveRequest, updateRequest } from "@/lib/store";
 import { runPreflight } from "@/lib/preflight";
 import { mockSettleInvoice, mockStreamTick } from "@/lib/mock-fiber";
@@ -61,6 +63,7 @@ function PulseApp() {
   const [tickCkb, setTickCkb] = useState("0.05");
   const [tryLive, setTryLive] = useState(false);
   const [liveOk, setLiveOk] = useState(false);
+  const [liveSnapshot, setLiveSnapshot] = useState<FiberSnapshot>();
   const [shareUrl, setShareUrl] = useState("");
   const [recent, setRecent] = useState<PaymentRequest[]>([]);
   const [active, setActive] = useState<PaymentRequest | null>(null);
@@ -71,6 +74,9 @@ function PulseApp() {
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
   const [receiptId, setReceiptId] = useState<string>();
+  const [liveReceipt, setLiveReceipt] = useState<PaymentProofReceipt>();
+  const [operatorMode, setOperatorMode] = useState(false);
+  const [operatorToken, setOperatorToken] = useState("");
   const [sessionCap, setSessionCapInput] = useState("20");
   const [session, setSession] = useState<SessionGrant | null>(null);
   const [l1Copied, setL1Copied] = useState(false);
@@ -92,6 +98,7 @@ function PulseApp() {
       setPreflight(null);
       setSettleMs(null);
       setReceiptId(undefined);
+      setLiveReceipt(undefined);
       return;
     }
 
@@ -138,9 +145,13 @@ function PulseApp() {
   useEffect(() => {
     if (!tryLive) {
       setLiveOk(false);
+      setLiveSnapshot(undefined);
       return;
     }
-    void probeLiveNode().then((r) => setLiveOk(r.ok));
+    void probeLiveNode().then((result) => {
+      setLiveOk(result.ok);
+      setLiveSnapshot(result.snapshot);
+    });
   }, [tryLive]);
 
   const badge = tryLive && liveOk ? "LIVE" : "MOCK";
@@ -254,7 +265,47 @@ function PulseApp() {
     }
     setBusy(true);
     setError(undefined);
+    setLiveReceipt(undefined);
     try {
+      if (preflight.source === "live") {
+        if (active.mode === "stream") {
+          throw new Error("Live stream execution is not enabled yet. Use an invoice or explicit mock mode.");
+        }
+        const response = await fetch("/api/fiber/payment", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(operatorMode && operatorToken
+              ? { authorization: `Bearer ${operatorToken}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            amountCkb: active.amountCkb,
+            requestId: active.id,
+            execute: operatorMode,
+          }),
+        });
+        const result = (await response.json()) as PaymentProofReceipt & { error?: string };
+        if (!response.ok) {
+          throw new Error(result.error ?? `Fiber payment request failed (${response.status})`);
+        }
+        setLiveReceipt(result);
+        setReceiptId(result.paymentHash ?? active.id);
+
+        if (result.mode === "executed" && result.settled) {
+          const paid: PaymentRequest = {
+            ...active,
+            status: "paid",
+            paidAt: Date.now(),
+            rail: "fiber",
+          };
+          saveRequest(paid);
+          setActive(paid);
+          setSession(recordSessionSpend(active.amountCkb));
+        }
+        return;
+      }
+
       if (active.mode === "stream") {
         let current: PaymentRequest = {
           ...active,
@@ -395,12 +446,18 @@ function PulseApp() {
                 {settleMs < 60 ? " — under 60ms." : "."}
               </div>
             )}
-            {done && receiptId && (
+            {(done || liveReceipt) && receiptId && (
               <div style={styles.receipt}>
-                <div style={styles.mute}>Receipt</div>
-                <code style={styles.mono}>pulse:{receiptId}</code>
+                <div style={styles.mute}>
+                  {liveReceipt?.mode === "dry-run" ? "Route proof" : "Receipt"}
+                </div>
+                <code style={styles.mono}>
+                  {liveReceipt ? `fiber:${receiptId}` : `pulse:${receiptId}`}
+                </code>
                 <div style={{ ...styles.mute, fontSize: 12 }}>
-                  Fiber rail · channel balances updated on this device
+                  {liveReceipt
+                    ? `${liveReceipt.mode} · ${liveReceipt.status} · ${liveReceipt.nextAction}`
+                    : "Fiber mock rail · channel balances updated on this device"}
                 </div>
               </div>
             )}
@@ -489,6 +546,31 @@ function PulseApp() {
               </div>
             )}
             {error && <p style={styles.error}>{error}</p>}
+            {preflight?.source === "live" && !onL1 && (
+              <div style={styles.operatorBox}>
+                <label style={styles.check}>
+                  <input
+                    type="checkbox"
+                    checked={operatorMode}
+                    onChange={(event) => setOperatorMode(event.target.checked)}
+                  />
+                  Trusted operator execution
+                </label>
+                {operatorMode && (
+                  <input
+                    type="password"
+                    value={operatorToken}
+                    onChange={(event) => setOperatorToken(event.target.value)}
+                    placeholder="Temporary operator token"
+                    autoComplete="off"
+                    style={styles.input}
+                  />
+                )}
+                <span style={{ ...styles.mute, fontSize: 11 }}>
+                  Off runs a bounded dry-run proof. On can move testnet funds and requires server authorization.
+                </span>
+              </div>
+            )}
             <div style={styles.actions}>
               <label style={styles.check}>
                 <input
@@ -511,7 +593,11 @@ function PulseApp() {
                   {done
                     ? "Paid"
                     : busy
-                      ? "Settling…"
+                      ? "Checking Fiber..."
+                      : preflight?.source === "live"
+                        ? operatorMode
+                          ? "Execute live payment"
+                          : "Run live route proof"
                       : active.mode === "stream"
                         ? "Start stream"
                         : "Pay now"}
@@ -535,7 +621,7 @@ function PulseApp() {
 
           {node && (
             <div style={{ width: "min(440px, 100%)" }} className="rise-3">
-              <ChannelStrip node={node} badge={badge} />
+              <ChannelStrip node={node} badge={badge} snapshot={preflight?.snapshot ?? liveSnapshot} />
             </div>
           )}
         </section>
@@ -574,7 +660,7 @@ function PulseApp() {
 
       {node && (
         <div className="rise-2" style={{ marginBottom: 28 }}>
-          <ChannelStrip node={node} badge={badge} />
+          <ChannelStrip node={node} badge={badge} snapshot={liveSnapshot} />
         </div>
       )}
 
@@ -720,8 +806,8 @@ function PulseApp() {
       )}
 
       <footer style={styles.footer}>
-        August product track — week in progress. Mock Fiber first; optional live RPC.
-        Notes: <code style={styles.mono}>august-reports/WEEK1_REPORT.md</code>
+        August product track — mock settlement, live channel preflight, and bounded Fiber proof.
+        Notes: <code style={styles.mono}>august-reports/WEEK2_REPORT.md</code>
       </footer>
     </main>
   );
@@ -1042,6 +1128,14 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 14,
     border: "1px solid var(--line)",
     background: "rgba(232,239,230,0.04)",
+  },
+  operatorBox: {
+    display: "grid",
+    gap: 9,
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(240,194,75,0.35)",
+    background: "rgba(240,194,75,0.06)",
   },
   dualRail: {
     display: "grid",

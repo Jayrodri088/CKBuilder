@@ -7,10 +7,12 @@
     "dev": "next dev -p 3060",
     "build": "next build",
     "start": "next start -p 3060",
+    "start:fnn": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-fnn-secure.ps1",
     "check:fiber": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-fiber-rpc.ps1",
     "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
     "prove:l1-live": "node ./scripts/prove-l1-live.mjs",
     "prove:l1-fund-claim": "node ./scripts/prove-l1-fund-claim.mjs",
+    "prove:fiber-security": "node ./scripts/prove-fiber-security.mjs",
     "sync:deployment": "node ./scripts/sync-deployment.mjs",
     "run:all": "node ./scripts/run-all.mjs"
   },

@@ -2,16 +2,29 @@
 
 import type { MockNodeState } from "@/lib/mock-node";
 import { totalReceiveCkb, totalSendCkb } from "@/lib/mock-node";
+import type { FiberSnapshot } from "@/lib/fiber-snapshot";
 
 export function ChannelStrip({
   node,
   badge,
+  snapshot,
 }: {
   node: MockNodeState;
   badge: "MOCK" | "LIVE";
+  snapshot?: FiberSnapshot;
 }) {
-  const send = totalSendCkb(node);
-  const recv = totalReceiveCkb(node);
+  const live = badge === "LIVE" ? snapshot : undefined;
+  const channels = live
+    ? live.channels.map((channel) => ({
+        id: channel.id,
+        peerShort: channel.peer,
+        localCkb: channel.sendableCkb,
+        remoteCkb: channel.receivableCkb,
+        state: channel.state,
+      }))
+    : node.channels;
+  const send = live ? live.maxSendableCkb : totalSendCkb(node);
+  const recv = live ? live.maxReceivableCkb : totalReceiveCkb(node);
   const total = send + recv || 1;
   const sendPct = Math.round((send / total) * 100);
 
@@ -76,7 +89,7 @@ export function ChannelStrip({
       </div>
 
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-        {node.channels.map((c) => {
+        {channels.map((c) => {
           const cap = c.localCkb + c.remoteCkb || 1;
           const localPct = Math.round((c.localCkb / cap) * 100);
           return (
