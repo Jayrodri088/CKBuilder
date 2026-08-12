@@ -12,7 +12,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PayMode, PaymentRequest, PreflightResult } from "@/lib/types";
 import type { FiberSnapshot } from "@/lib/fiber-snapshot";
-import type { PaymentProofReceipt } from "@/lib/payment-proof";
+import type { PaymentProofPolicy, PaymentProofReceipt } from "@/lib/payment-proof";
 import { getRequest, listRequests, newId, saveRequest, updateRequest } from "@/lib/store";
 import { runPreflight } from "@/lib/preflight";
 import { mockSettleInvoice, mockStreamTick } from "@/lib/mock-fiber";
@@ -64,6 +64,7 @@ function PulseApp() {
   const [tryLive, setTryLive] = useState(false);
   const [liveOk, setLiveOk] = useState(false);
   const [liveSnapshot, setLiveSnapshot] = useState<FiberSnapshot>();
+  const [livePolicy, setLivePolicy] = useState<(PaymentProofPolicy & { targetConfigured: boolean })>();
   const [shareUrl, setShareUrl] = useState("");
   const [recent, setRecent] = useState<PaymentRequest[]>([]);
   const [active, setActive] = useState<PaymentRequest | null>(null);
@@ -146,11 +147,22 @@ function PulseApp() {
     if (!tryLive) {
       setLiveOk(false);
       setLiveSnapshot(undefined);
+      setLivePolicy(undefined);
       return;
     }
-    void probeLiveNode().then((result) => {
+    void Promise.all([
+      probeLiveNode(),
+      fetch("/api/fiber/payment", { cache: "no-store" })
+        .then((response) => response.json())
+        .catch(() => undefined),
+    ]).then(([result, policy]) => {
       setLiveOk(result.ok);
       setLiveSnapshot(result.snapshot);
+      setLivePolicy(policy);
+      if (!policy?.executionEnabled) {
+        setOperatorMode(false);
+        setOperatorToken("");
+      }
     });
   }, [tryLive]);
 
@@ -368,6 +380,9 @@ function PulseApp() {
   if ((payId || payPayload) && active) {
     const done = active.status === "paid" || active.status === "capped";
     const onL1 = active.rail === "l1" || active.status === "l1_handoff";
+    const liveActionBlocked =
+      preflight?.source === "live" &&
+      (!livePolicy?.targetConfigured || active.amountCkb > (livePolicy?.maxCkb ?? 0));
     const fixes = fixesForPreflight(active, preflight);
     return (
       <main style={styles.shell}>
@@ -548,26 +563,34 @@ function PulseApp() {
             {error && <p style={styles.error}>{error}</p>}
             {preflight?.source === "live" && !onL1 && (
               <div style={styles.operatorBox}>
-                <label style={styles.check}>
-                  <input
-                    type="checkbox"
-                    checked={operatorMode}
-                    onChange={(event) => setOperatorMode(event.target.checked)}
-                  />
-                  Trusted operator execution
-                </label>
-                {operatorMode && (
-                  <input
-                    type="password"
-                    value={operatorToken}
-                    onChange={(event) => setOperatorToken(event.target.value)}
-                    placeholder="Temporary operator token"
-                    autoComplete="off"
-                    style={styles.input}
-                  />
+                {livePolicy?.executionEnabled ? (
+                  <>
+                    <label style={styles.check}>
+                      <input
+                        type="checkbox"
+                        checked={operatorMode}
+                        onChange={(event) => setOperatorMode(event.target.checked)}
+                      />
+                      Trusted operator execution
+                    </label>
+                    {operatorMode && (
+                      <input
+                        type="password"
+                        value={operatorToken}
+                        onChange={(event) => setOperatorToken(event.target.value)}
+                        placeholder="Temporary operator token"
+                        autoComplete="off"
+                        style={styles.input}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <strong style={{ fontSize: 13 }}>Live execution window closed</strong>
                 )}
                 <span style={{ ...styles.mute, fontSize: 11 }}>
-                  Off runs a bounded dry-run proof. On can move testnet funds and requires server authorization.
+                  {livePolicy?.targetConfigured
+                    ? `Public route proofs are capped at ${livePolicy.maxCkb} CKB on ${livePolicy.allowedNetwork}.`
+                    : "A trusted payment target has not been configured."}
                 </span>
               </div>
             )}
@@ -585,9 +608,9 @@ function PulseApp() {
                   type="button"
                   style={{
                     ...styles.primary,
-                    opacity: busy || !preflight?.canPay || done ? 0.5 : 1,
+                    opacity: busy || !preflight?.canPay || done || liveActionBlocked ? 0.5 : 1,
                   }}
-                  disabled={busy || !preflight?.canPay || done}
+                  disabled={busy || !preflight?.canPay || done || liveActionBlocked}
                   onClick={() => void onPay()}
                 >
                   {done

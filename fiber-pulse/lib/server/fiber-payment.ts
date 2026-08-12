@@ -11,6 +11,7 @@ export function paymentPolicy() {
     maxCkb: numberEnv("FIBER_PAYMENT_MAX_CKB", 0.05),
     cooldownMs: numberEnv("FIBER_PAYMENT_COOLDOWN_MS", 30_000),
     executionEnabled: process.env.FIBER_PAYMENT_EXECUTION_ENABLED === "true",
+    allowedNetwork: process.env.FIBER_PAYMENT_ALLOWED_NETWORK?.trim().toLowerCase() || "testnet",
   };
 }
 
@@ -61,17 +62,15 @@ export async function runFiberPayment(input: {
     "--color",
     "never",
   ];
-  const { stdout } = await execFileAsync(cliPath, args, {
-    timeout: 30_000,
-    windowsHide: true,
-    env: process.env,
-  });
-  const result = JSON.parse(stdout) as {
+  let result = await runCli(cliPath, args) as {
     payment_hash?: string;
     status?: string;
     fee?: string;
     failed_error?: string | null;
   };
+  if (input.execute && result.payment_hash && !terminalStatus(result.status)) {
+    result = await waitForFinalPayment(cliPath, rpcUrl, result.payment_hash, result);
+  }
   if (result.failed_error) throw new Error(`Fiber payment failed: ${result.failed_error}`);
 
   const status = result.status ?? "unknown";
@@ -94,6 +93,48 @@ export async function runFiberPayment(input: {
         : "Payment was submitted; verify its final status before treating it as settled."
       : "Route proof succeeded. Live execution remains operator-gated.",
   };
+}
+
+async function runCli(cliPath: string, args: string[]) {
+  const { stdout } = await execFileAsync(cliPath, args, {
+    timeout: 30_000,
+    windowsHide: true,
+    env: process.env,
+  });
+  return JSON.parse(stdout) as Record<string, unknown>;
+}
+
+async function waitForFinalPayment(
+  cliPath: string,
+  rpcUrl: string,
+  paymentHash: string,
+  initial: Record<string, unknown>,
+) {
+  let result = initial;
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    result = await runCli(cliPath, [
+      "payment",
+      "get_payment",
+      "--url",
+      rpcUrl,
+      "--payment-hash",
+      paymentHash,
+      "--output-format",
+      "json",
+      "--no-banner",
+      "--color",
+      "never",
+    ]);
+    if (terminalStatus(typeof result.status === "string" ? result.status : undefined)) return result;
+  }
+  return result;
+}
+
+function terminalStatus(status?: string) {
+  const normalized = status?.toUpperCase();
+  return normalized === "SUCCESS" || normalized === "FAILED";
 }
 
 function numberEnv(name: string, fallback: number) {

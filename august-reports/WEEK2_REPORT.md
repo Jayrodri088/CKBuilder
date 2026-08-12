@@ -77,12 +77,21 @@ I added `fiber-pulse/.env.example` and `fiber-pulse/docs/FIBER_LIVE_MODE.md`. Th
 4. Added a narrowly gated path for real testnet keysend execution.
 5. Preserved the existing L1 hash-lock fallback and explicit mock product flow.
 
+## August 12 Progress
+
+I completed the first real payment-path proof against the running FNN node. A new `pnpm run prove:fiber-live` command discovers the peer on a ready CKB channel, starts the production Fiber Pulse server with that server-owned target, and submits a 0.01 CKB dry run through the same `/api/fiber/payment` endpoint used by the UI.
+
+The proof passed on testnet with one ready channel, returned FNN status `Created`, reported zero routing fee, produced a redacted payment hash, and asserted `settled: false`. This closes the gap between a live channel snapshot and a real FNN route-construction check while still guaranteeing that the automated proof cannot move funds. Redacted evidence is written locally to `fiber-pulse/artifacts/fiber-live-proof.json` and excluded from Git.
+
+I then hardened and exercised the real execution path. Live execution is now restricted by the server to an allowed network (`testnet` by default), and the payment adapter polls `get_payment` until a terminal status rather than treating submission as settlement. A one-shot `prove:fiber-execution` command generates an ephemeral operator token and caps itself at 0.01 CKB.
+
+The first execution passed with final status `Success`. The ready channel's local balance changed from **400 CKB to 399.99 CKB**, while its remote balance changed from **151 CKB to 151.01 CKB**. This independently confirms the 0.01 CKB transfer rather than relying only on the payment response. The UI now reads the server payment policy, shows whether the execution window is open, displays the proof cap and allowed network, and disables unsupported live actions.
+
 ## Next
 
-1. Configure a trusted peer target and prove a sub-cap dry-run payment.
-2. Open a short testnet execution window and capture one successful payment receipt.
-3. Replace the in-memory cooldown with a shared limiter before multi-instance deployment.
-4. Design signed, single-use payment capabilities before exposing execution beyond a trusted operator.
+1. Replace the in-memory cooldown with a shared limiter before multi-instance deployment.
+2. Design signed, single-use payment capabilities before exposing execution beyond a trusted operator.
+3. Add invoice-based settlement so merchants can receive without a server-fixed keysend target.
 
 ## References
 

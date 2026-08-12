@@ -31,11 +31,16 @@ Open http://127.0.0.1:3060.
 pnpm exec tsc --noEmit
 pnpm run build
 pnpm run prove:fiber-security
+pnpm run prove:fiber-live
 pnpm run prove:l1-live
 pnpm run prove:l1-fund-claim
 ```
 
 The Fiber security proof boots the production build and verifies that the old arbitrary RPC proxy path is blocked, private RPC details are redacted, and the payment cap is enforced before execution.
+
+With FNN running, `prove:fiber-live` discovers a ready CKB channel and runs a 0.01 CKB end-to-end dry-run through the production Fiber Pulse API. It saves a redacted local receipt to `artifacts/fiber-live-proof.json`; generated evidence is ignored by Git.
+
+`prove:fiber-execution` is intentionally separate and moves exactly 0.01 testnet CKB. It creates an ephemeral operator token, restricts execution to testnet, waits for final payment status, and verifies the channel balance delta before passing.
 
 ## Live Fiber
 

@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
   if (!snapshot.reachable || !snapshot.node?.synced || snapshot.peerCount === 0) {
     return failure(409, "Fiber node is not ready for a payment attempt.");
   }
+  if (execute && snapshot.node.network.toLowerCase() !== policy.allowedNetwork) {
+    return failure(403, `Live execution is restricted to ${policy.allowedNetwork}.`);
+  }
   if (snapshot.maxSendableCkb < amountCkb) {
     return failure(409, "Ready channels do not have enough outbound CKB liquidity.");
   }

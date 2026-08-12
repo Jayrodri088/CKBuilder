@@ -53,6 +53,15 @@ D:\CKB\fiber-bin\fnn-cli.exe peer list_peers --url http://127.0.0.1:8227
 D:\CKB\fiber-bin\fnn-cli.exe channel list_channels --url http://127.0.0.1:8227
 ```
 
+Build and prove the live API without moving funds:
+
+```powershell
+pnpm run build
+pnpm run prove:fiber-live
+```
+
+The proof discovers a ready CKB channel instead of accepting a target from the browser. It runs a capped 0.01 CKB dry run through `/api/fiber/payment`, asserts that the receipt is not settled, and writes redacted local evidence to `artifacts/fiber-live-proof.json`.
+
 ## Test flow
 
 1. Start FNN and Fiber Pulse.
@@ -64,6 +73,14 @@ D:\CKB\fiber-bin\fnn-cli.exe channel list_channels --url http://127.0.0.1:8227
 7. During a trusted testnet window, enable execution on the server, restart Pulse, select operator execution, and enter the temporary token.
 8. Execute the payment. Treat it as paid only when the receipt reports `SUCCESS`.
 9. Disable execution and rotate the operator token after the window.
+
+For the bounded local execution proof:
+
+```powershell
+pnpm run prove:fiber-execution
+```
+
+This command moves 0.01 testnet CKB. It discovers the ready channel target, generates an in-memory operator token, enables execution only in its temporary server process, requires final `Success`, verifies local and remote channel balance changes, and then closes the execution process. Evidence is written to `artifacts/fiber-live-execution.json` and ignored by Git.
 
 ## Current boundary
 

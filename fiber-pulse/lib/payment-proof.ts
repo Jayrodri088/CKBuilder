@@ -18,4 +18,5 @@ export type PaymentProofPolicy = {
   maxCkb: number;
   cooldownMs: number;
   executionEnabled: boolean;
+  allowedNetwork: string;
 };

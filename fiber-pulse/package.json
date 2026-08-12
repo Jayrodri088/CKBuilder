@@ -13,6 +13,8 @@
     "prove:l1-live": "node ./scripts/prove-l1-live.mjs",
     "prove:l1-fund-claim": "node ./scripts/prove-l1-fund-claim.mjs",
     "prove:fiber-security": "node ./scripts/prove-fiber-security.mjs",
+    "prove:fiber-live": "node ./scripts/prove-fiber-live.mjs",
+    "prove:fiber-execution": "node ./scripts/prove-fiber-execution.mjs",
     "sync:deployment": "node ./scripts/sync-deployment.mjs",
     "run:all": "node ./scripts/run-all.mjs"
   },
