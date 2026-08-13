@@ -21,8 +21,10 @@ export function ChannelStrip({
         localCkb: channel.sendableCkb,
         remoteCkb: channel.receivableCkb,
         state: channel.state,
+        connected: channel.connected,
+        enabled: channel.enabled,
       }))
-    : node.channels;
+    : node.channels.map((channel) => ({ ...channel, connected: true, enabled: true }));
   const send = live ? live.maxSendableCkb : totalSendCkb(node);
   const recv = live ? live.maxReceivableCkb : totalReceiveCkb(node);
   const total = send + recv || 1;
@@ -106,7 +108,7 @@ export function ChannelStrip({
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{c.id}</span>
                 <span style={{ fontSize: 11, color: "var(--mute)" }}>
-                  {c.state} · {c.peerShort}
+                  {c.state} · {!c.enabled ? "disabled" : c.connected ? c.peerShort : "peer offline"}
                 </span>
               </div>
               <div

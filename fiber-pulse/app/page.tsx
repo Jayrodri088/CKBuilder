@@ -61,6 +61,7 @@ function PulseApp() {
   const [mode, setMode] = useState<PayMode>("invoice");
   const [streamCap, setStreamCap] = useState("1");
   const [tickCkb, setTickCkb] = useState("0.05");
+  const [fiberInvoice, setFiberInvoice] = useState("");
   const [tryLive, setTryLive] = useState(false);
   const [liveOk, setLiveOk] = useState(false);
   const [liveSnapshot, setLiveSnapshot] = useState<FiberSnapshot>();
@@ -184,6 +185,33 @@ function PulseApp() {
       setError("Enter a valid CKB amount.");
       return;
     }
+    const signedInvoice = fiberInvoice.trim();
+    if (signedInvoice && mode !== "invoice") {
+      setError("Signed Fiber invoices are supported for invoice mode only.");
+      return;
+    }
+    let invoiceExpiresAt: number | undefined;
+    if (signedInvoice) {
+      setBusy(true);
+      try {
+        const response = await fetch("/api/fiber/invoice", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ invoice: signedInvoice, amountCkb: amount }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.valid) {
+          setError(result.error ?? "Fiber invoice validation failed.");
+          return;
+        }
+        invoiceExpiresAt = Date.parse(result.invoice.expiresAt);
+      } catch {
+        setError("The Fiber node could not validate this invoice.");
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
     const id = newId();
     const now = Date.now();
     const req: PaymentRequest = {
@@ -191,11 +219,12 @@ function PulseApp() {
       label: label.trim() || "Payment",
       amountCkb: amount,
       mode,
+      fiberInvoice: signedInvoice || undefined,
       rail: "fiber",
       streamCapCkb: mode === "stream" ? Number(streamCap) || amount : undefined,
       tickCkb: mode === "stream" ? Number(tickCkb) || 0.05 : undefined,
       createdAt: now,
-      expiresAt: now + 30 * 60_000,
+      expiresAt: Math.min(now + 30 * 60_000, invoiceExpiresAt ?? Number.POSITIVE_INFINITY),
       status: "open",
       streamedCkb: 0,
     };
@@ -295,6 +324,7 @@ function PulseApp() {
             amountCkb: active.amountCkb,
             requestId: active.id,
             execute: operatorMode,
+            invoice: active.fiberInvoice,
           }),
         });
         const result = (await response.json()) as PaymentProofReceipt & { error?: string };
@@ -382,7 +412,9 @@ function PulseApp() {
     const onL1 = active.rail === "l1" || active.status === "l1_handoff";
     const liveActionBlocked =
       preflight?.source === "live" &&
-      (!livePolicy?.targetConfigured || active.amountCkb > (livePolicy?.maxCkb ?? 0));
+      ((active.fiberInvoice && !livePolicy?.invoicePaymentsEnabled) ||
+        (!active.fiberInvoice && !livePolicy?.targetConfigured) ||
+        active.amountCkb > (livePolicy?.maxCkb ?? 0));
     const fixes = fixesForPreflight(active, preflight);
     return (
       <main style={styles.shell}>
@@ -419,6 +451,14 @@ function PulseApp() {
                 {active.mode === "stream" ? "stream grant" : "invoice"}
               </strong>
             </div>
+            {active.fiberInvoice && (
+              <div style={styles.sheetRow}>
+                <span style={styles.mute}>Recipient</span>
+                <strong style={{ ...styles.mono, color: "var(--lime)" }}>
+                  signed merchant invoice
+                </strong>
+              </div>
+            )}
             <div style={styles.sheetRow}>
               <span style={styles.mute}>Status</span>
               <strong style={{ ...styles.mono, color: statusColor(active.status) }}>
@@ -588,7 +628,9 @@ function PulseApp() {
                   <strong style={{ fontSize: 13 }}>Live execution window closed</strong>
                 )}
                 <span style={{ ...styles.mute, fontSize: 11 }}>
-                  {livePolicy?.targetConfigured
+                  {active.fiberInvoice
+                    ? `The signed merchant invoice is bound to ${active.amountCkb} CKB and revalidated before payment.`
+                    : livePolicy?.targetConfigured
                     ? `Public route proofs are capped at ${livePolicy.maxCkb} CKB on ${livePolicy.allowedNetwork}.`
                     : "A trusted payment target has not been configured."}
                 </span>
@@ -763,9 +805,24 @@ function PulseApp() {
               </label>
             </div>
           )}
+          {mode === "invoice" && (
+            <label style={styles.field}>
+              <span>Signed Fiber invoice (optional)</span>
+              <textarea
+                value={fiberInvoice}
+                onChange={(event) => setFiberInvoice(event.target.value.trim())}
+                placeholder="fibt..."
+                rows={4}
+                style={{ ...styles.input, resize: "vertical", fontFamily: "var(--font-mono)" }}
+              />
+              <small style={styles.mute}>
+                Validated against FNN before sharing. The signed amount must match this request.
+              </small>
+            </label>
+          )}
           {error && <p style={styles.error}>{error}</p>}
-          <button type="submit" style={styles.primary}>
-            Generate pay link
+          <button type="submit" style={{ ...styles.primary, opacity: busy ? 0.6 : 1 }} disabled={busy}>
+            {busy ? "Validating invoice..." : "Generate pay link"}
           </button>
         </form>
 

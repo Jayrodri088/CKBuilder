@@ -51,12 +51,15 @@ function channelState(raw: any): FiberChannelSnapshot["state"] {
   return "pending";
 }
 
-function normalizeChannel(raw: any, index: number): FiberChannelSnapshot {
+function normalizeChannel(raw: any, index: number, connectedPeers: Set<string>): FiberChannelSnapshot {
   const asset = raw.asset ?? raw.asset_type ?? raw.udt_type_script ?? raw.funding_udt_type_script;
+  const peer = raw.peer_id ?? raw.peerId ?? raw.remote_peer_id ?? raw.pubkey;
   return {
     id: short(raw.channel_id ?? raw.channelId, `channel-${index + 1}`),
-    peer: short(raw.peer_id ?? raw.peerId ?? raw.remote_peer_id ?? raw.pubkey, "configured-peer"),
+    peer: short(peer, "configured-peer"),
     state: channelState(raw),
+    enabled: raw.enabled !== false,
+    connected: typeof peer === "string" && connectedPeers.has(peer),
     asset: asset ? String(asset) : "CKB",
     sendableCkb: ckb(raw.local_balance ?? raw.localBalance ?? raw.balance_local),
     receivableCkb: ckb(raw.remote_balance ?? raw.remoteBalance ?? raw.balance_remote),
@@ -73,9 +76,17 @@ export async function fetchPublicFiberSnapshot(): Promise<FiberSnapshot> {
     ]);
     const rawChannels = Array.isArray(channelsRaw) ? channelsRaw : channelsRaw.channels ?? [];
     const rawPeers = Array.isArray(peersRaw) ? peersRaw : peersRaw.peers ?? [];
-    const channels = rawChannels.map(normalizeChannel);
+    const connectedPeers = new Set<string>();
+    for (const rawPeer of rawPeers) {
+      const peer = rawPeer.pubkey ?? rawPeer.peer_id ?? rawPeer.peerId;
+      if (typeof peer === "string") connectedPeers.add(peer);
+    }
+    const channels = rawChannels.map((channel: any, index: number) =>
+      normalizeChannel(channel, index, connectedPeers),
+    );
     const readyCkb = channels.filter(
-      (channel: FiberChannelSnapshot) => channel.state === "ready" && channel.asset === "CKB",
+      (channel: FiberChannelSnapshot) =>
+        channel.state === "ready" && channel.enabled && channel.connected && channel.asset === "CKB",
     );
     const chainHash = nodeRaw.chain_hash ?? nodeRaw.chainHash;
 

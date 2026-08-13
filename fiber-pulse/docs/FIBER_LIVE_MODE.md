@@ -2,7 +2,9 @@
 
 ## Security model
 
-The browser never chooses an FNN RPC URL, JSON-RPC method, target pubkey, fee policy, or CLI executable. `/api/fiber` exposes a fixed read-only snapshot. `/api/fiber/payment` accepts only a request ID, bounded CKB amount, and an execution flag.
+The browser never chooses an FNN RPC URL, JSON-RPC method, fee policy, or CLI executable. `/api/fiber` exposes a fixed read-only snapshot. `/api/fiber/payment` accepts only a request ID, bounded CKB amount, execution flag, and optionally a signed merchant invoice.
+
+`/api/fiber/invoice` parses merchant invoices through the server-owned FNN CLI and returns only a redacted summary. The payment endpoint parses the invoice again immediately before use and requires its signed currency, exact amount, and expiry to match the live network and payment request.
 
 Dry-run proof is rate-limited in process and capped by `FIBER_PAYMENT_MAX_CKB`. Live execution additionally requires a server opt-in and a matching bearer token. The target peer remains server-configured.
 
@@ -16,6 +18,9 @@ FNN_CLI_PATH=D:\CKB\fiber-bin\fnn-cli.exe
 FIBER_PAYMENT_TARGET_PUBKEY=<trusted-testnet-peer-pubkey>
 FIBER_PAYMENT_MAX_CKB=0.05
 FIBER_PAYMENT_COOLDOWN_MS=30000
+FIBER_PAYMENT_ALLOWED_NETWORK=testnet
+FIBER_INVOICE_PAYMENTS_ENABLED=true
+FIBER_INVOICE_VALIDATION_COOLDOWN_MS=750
 FIBER_PAYMENT_EXECUTION_ENABLED=false
 FIBER_PAYMENT_EXECUTION_TOKEN=<long-random-operator-secret>
 ```
@@ -62,6 +67,8 @@ pnpm run prove:fiber-live
 
 The proof discovers a ready CKB channel instead of accepting a target from the browser. It runs a capped 0.01 CKB dry run through `/api/fiber/payment`, asserts that the receipt is not settled, and writes redacted local evidence to `artifacts/fiber-live-proof.json`.
 
+Pulse counts channel liquidity only when that channel is ready, enabled, and its actual channel peer appears in `list_peers`. A bootnode connection does not make an offline channel routable.
+
 ## Test flow
 
 1. Start FNN and Fiber Pulse.
@@ -73,6 +80,27 @@ The proof discovers a ready CKB channel instead of accepting a target from the b
 7. During a trusted testnet window, enable execution on the server, restart Pulse, select operator execution, and enter the temporary token.
 8. Execute the payment. Treat it as paid only when the receipt reports `SUCCESS`.
 9. Disable execution and rotate the operator token after the window.
+
+## Merchant invoices
+
+Create the invoice on the receiving merchant node, not the payer node:
+
+```powershell
+fnn-cli invoice new_invoice `
+  --url http://MERCHANT_FNN:8227 `
+  --amount 1000000 `
+  --currency Fibt `
+  --description "Order 1042" `
+  --expiry 600
+```
+
+The amount is in shannons, so `1000000` is `0.01 CKB`. Paste the returned `invoice_address` into the Pulse merchant form and use the same CKB amount. The merchant RPC remains private; only the signed invoice is shared.
+
+Run the non-settling policy proof:
+
+```powershell
+pnpm run prove:fiber-invoice
+```
 
 For the bounded local execution proof:
 

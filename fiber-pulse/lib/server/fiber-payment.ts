@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { PaymentProofReceipt } from "../payment-proof";
+import type { FiberInvoiceSummary } from "../payment-proof";
 
 const execFileAsync = promisify(execFile);
 
@@ -12,6 +13,7 @@ export function paymentPolicy() {
     cooldownMs: numberEnv("FIBER_PAYMENT_COOLDOWN_MS", 30_000),
     executionEnabled: process.env.FIBER_PAYMENT_EXECUTION_ENABLED === "true",
     allowedNetwork: process.env.FIBER_PAYMENT_ALLOWED_NETWORK?.trim().toLowerCase() || "testnet",
+    invoicePaymentsEnabled: process.env.FIBER_INVOICE_PAYMENTS_ENABLED !== "false",
   };
 }
 
@@ -33,23 +35,28 @@ export async function runFiberPayment(input: {
   amountCkb: number;
   requestId: string;
   execute: boolean;
+  invoice?: string;
 }): Promise<PaymentProofReceipt> {
   const rpcUrl = process.env.FIBER_RPC_URL?.trim() || "http://127.0.0.1:8227";
   const cliPath = process.env.FNN_CLI_PATH?.trim() || "fnn-cli";
   const target = process.env.FIBER_PAYMENT_TARGET_PUBKEY?.trim();
-  if (!target) throw new Error("A trusted Fiber payment target is not configured.");
+  if (!input.invoice && !target) throw new Error("A trusted Fiber payment target is not configured.");
 
   const args = [
     "payment",
     "send_payment",
     "--url",
     rpcUrl,
-    "--target-pubkey",
-    target,
-    "--amount",
-    String(Math.round(input.amountCkb * 100_000_000)),
-    "--keysend",
-    "true",
+    ...(input.invoice
+      ? ["--invoice", input.invoice]
+      : [
+          "--target-pubkey",
+          target!,
+          "--amount",
+          String(Math.round(input.amountCkb * 100_000_000)),
+          "--keysend",
+          "true",
+        ]),
     "--dry-run",
     String(!input.execute),
     "--timeout",
@@ -82,7 +89,7 @@ export async function runFiberPayment(input: {
     requestId: input.requestId,
     amountCkb: input.amountCkb,
     asset: "CKB",
-    target: "configured Fiber peer",
+    target: input.invoice ? "merchant invoice" : "configured Fiber peer",
     paymentHash: redact(result.payment_hash),
     status,
     fee: result.fee,
@@ -93,6 +100,56 @@ export async function runFiberPayment(input: {
         : "Payment was submitted; verify its final status before treating it as settled."
       : "Route proof succeeded. Live execution remains operator-gated.",
   };
+}
+
+export async function parseFiberInvoice(encoded: string): Promise<FiberInvoiceSummary> {
+  if (!/^[a-z0-9]{100,4096}$/.test(encoded)) {
+    throw new Error("Fiber invoice format is invalid.");
+  }
+  const rpcUrl = process.env.FIBER_RPC_URL?.trim() || "http://127.0.0.1:8227";
+  const cliPath = process.env.FNN_CLI_PATH?.trim() || "fnn-cli";
+  const parsed = await runCli(cliPath, [
+    "invoice",
+    "parse_invoice",
+    "--url",
+    rpcUrl,
+    "--invoice",
+    encoded,
+    "--output-format",
+    "json",
+    "--no-banner",
+    "--color",
+    "never",
+  ]) as any;
+  const invoice = parsed.invoice;
+  if (!invoice?.amount || !invoice?.currency || !invoice?.data?.payment_hash) {
+    throw new Error("Fiber invoice is missing required signed fields.");
+  }
+  const attrs = Array.isArray(invoice.data.attrs) ? invoice.data.attrs : [];
+  const attribute = (name: string) => attrs.find((item: any) => item && name in item)?.[name];
+  const timestamp = integer(invoice.data.timestamp);
+  const expirySeconds = integer(attribute("expiry_time") ?? "0xe10");
+  const expiresAtMs = timestamp + expirySeconds * 1_000;
+  const payee = attribute("payee_public_key");
+  if (typeof payee !== "string" || typeof invoice.data.payment_hash !== "string") {
+    throw new Error("Fiber invoice is missing signed recipient identity.");
+  }
+  return {
+    amountCkb: integer(invoice.amount) / 100_000_000,
+    currency: String(invoice.currency),
+    description: attribute("description"),
+    payee: redact(payee)!,
+    paymentHash: redact(invoice.data.payment_hash)!,
+    createdAt: new Date(timestamp).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString(),
+    expired: Date.now() >= expiresAtMs,
+  };
+}
+
+export function expectedInvoiceCurrency(network: string) {
+  if (network.toLowerCase() === "testnet") return "Fibt";
+  if (network.toLowerCase() === "mainnet") return "Fib";
+  return undefined;
 }
 
 async function runCli(cliPath: string, args: string[]) {
@@ -140,6 +197,16 @@ function terminalStatus(status?: string) {
 function numberEnv(name: string, fallback: number) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function integer(value: unknown) {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") throw new Error("Fiber invoice contains an invalid integer.");
+  const parsed = value.startsWith("0x") ? Number.parseInt(value, 16) : Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error("Fiber invoice contains an invalid integer.");
+  }
+  return parsed;
 }
 
 function redact(value?: string) {

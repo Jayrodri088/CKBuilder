@@ -11,6 +11,8 @@ export interface PaymentRequest {
   label: string;
   amountCkb: number;
   mode: PayMode;
+  /** Signed Fiber invoice supplied by the merchant for recipient-directed settlement. */
+  fiberInvoice?: string;
   /** Preferred settlement rail */
   rail?: PayRail;
   /** Stream: max CKB total for the stream grant */

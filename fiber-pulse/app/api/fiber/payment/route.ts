@@ -3,6 +3,8 @@ import { fetchPublicFiberSnapshot } from "@/lib/server/fiber-rpc";
 import {
   paymentPolicy,
   paymentTargetConfigured,
+  expectedInvoiceCurrency,
+  parseFiberInvoice,
   runFiberPayment,
   validExecutionToken,
 } from "@/lib/server/fiber-payment";
@@ -22,9 +24,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const policy = paymentPolicy();
   if (!policy.enabled) return failure(403, "Fiber payment proof is disabled.");
-  if (!paymentTargetConfigured()) return failure(503, "Trusted Fiber payment target is not configured.");
 
-  let body: { amountCkb?: unknown; requestId?: unknown; execute?: unknown };
+  let body: { amountCkb?: unknown; requestId?: unknown; execute?: unknown; invoice?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -34,6 +35,13 @@ export async function POST(request: NextRequest) {
   const amountCkb = Number(body.amountCkb);
   const requestId = typeof body.requestId === "string" ? body.requestId : "";
   const execute = body.execute === true;
+  const invoice = typeof body.invoice === "string" ? body.invoice.trim() : undefined;
+  if (!invoice && !paymentTargetConfigured()) {
+    return failure(503, "A merchant invoice or trusted Fiber payment target is required.");
+  }
+  if (invoice && !policy.invoicePaymentsEnabled) {
+    return failure(403, "Merchant invoice payments are disabled on this deployment.");
+  }
   if (!Number.isFinite(amountCkb) || amountCkb <= 0 || amountCkb > policy.maxCkb) {
     return failure(400, `Amount must be between 0 and ${policy.maxCkb} CKB.`);
   }
@@ -58,7 +66,25 @@ export async function POST(request: NextRequest) {
   lastProofAt = now;
 
   const snapshot = await fetchPublicFiberSnapshot();
-  if (!snapshot.reachable || !snapshot.node?.synced || snapshot.peerCount === 0) {
+  if (!snapshot.reachable || !snapshot.node) {
+    return failure(409, "Fiber node is unavailable for payment validation.");
+  }
+  try {
+    if (invoice) {
+      const parsed = await parseFiberInvoice(invoice);
+      const expectedCurrency = expectedInvoiceCurrency(snapshot.node.network);
+      if (!expectedCurrency || parsed.currency !== expectedCurrency) {
+        return failure(400, `Invoice currency does not match ${snapshot.node.network}.`);
+      }
+      if (Math.round(parsed.amountCkb * 100_000_000) !== Math.round(amountCkb * 100_000_000)) {
+        return failure(400, "Invoice amount does not match the payment request.");
+      }
+      if (parsed.expired) return failure(400, "Merchant invoice has expired.");
+    }
+  } catch {
+    return failure(400, "Fiber invoice could not be parsed or verified.");
+  }
+  if (!snapshot.node.synced || snapshot.peerCount === 0) {
     return failure(409, "Fiber node is not ready for a payment attempt.");
   }
   if (execute && snapshot.node.network.toLowerCase() !== policy.allowedNetwork) {
@@ -69,7 +95,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const receipt = await runFiberPayment({ amountCkb, requestId, execute });
+    const receipt = await runFiberPayment({ amountCkb, requestId, execute, invoice });
     return NextResponse.json(receipt, { headers: { "cache-control": "no-store" } });
   } catch {
     console.error("Fiber payment command failed");

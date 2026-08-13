@@ -74,14 +74,15 @@ async function runLivePreflight(req: PaymentRequest, started: number): Promise<P
     const latencyMs = Math.round(performance.now() - started);
     const need = req.mode === "stream" ? (req.tickCkb ?? 0.05) : req.amountCkb;
     const readyChannels = snapshot.channels.filter(
-      (channel) => channel.state === "ready" && channel.asset === "CKB",
+      (channel) =>
+        channel.state === "ready" && channel.enabled && channel.connected && channel.asset === "CKB",
     );
     const reasons: string[] = [];
 
     if (!snapshot.reachable) reasons.push("Configured Fiber node is unreachable");
     if (snapshot.node && !snapshot.node.synced) reasons.push("Fiber node is not synced");
     if (snapshot.peerCount === 0) reasons.push("No connected Fiber peers");
-    if (readyChannels.length === 0) reasons.push("No ready CKB channels");
+    if (readyChannels.length === 0) reasons.push("No connected, enabled CKB channels are ready");
     if (snapshot.maxSendableCkb < need) {
       reasons.push(
         `Need ${need} CKB outbound; ready channels expose ${snapshot.maxSendableCkb.toFixed(2)} CKB`,

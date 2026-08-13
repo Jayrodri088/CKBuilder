@@ -5,7 +5,7 @@ export type PaymentProofReceipt = {
   requestId: string;
   amountCkb: number;
   asset: "CKB";
-  target: "configured Fiber peer";
+  target: "configured Fiber peer" | "merchant invoice";
   paymentHash?: string;
   status: string;
   fee?: string;
@@ -19,4 +19,16 @@ export type PaymentProofPolicy = {
   cooldownMs: number;
   executionEnabled: boolean;
   allowedNetwork: string;
+  invoicePaymentsEnabled: boolean;
+};
+
+export type FiberInvoiceSummary = {
+  amountCkb: number;
+  currency: string;
+  description?: string;
+  payee: string;
+  paymentHash: string;
+  createdAt: string;
+  expiresAt: string;
+  expired: boolean;
 };

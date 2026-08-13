@@ -9,6 +9,7 @@ Fiber Pulse is a consumer payment flow for CKB over Fiber: create a request, sha
 - Live preflight based on sync state, peers, ready CKB channels, and outbound liquidity
 - Bounded `fnn-cli send_payment --dry-run` route proof
 - Operator-gated live keysend execution with a temporary bearer token
+- Merchant-directed settlement with signed Fiber invoice validation
 - Receipts that distinguish mock settlement, dry-run proof, and successful live settlement
 - L1 hash-lock fallback, funding monitor, and Pay Link claim handoff
 
@@ -41,6 +42,18 @@ The Fiber security proof boots the production build and verifies that the old ar
 With FNN running, `prove:fiber-live` discovers a ready CKB channel and runs a 0.01 CKB end-to-end dry-run through the production Fiber Pulse API. It saves a redacted local receipt to `artifacts/fiber-live-proof.json`; generated evidence is ignored by Git.
 
 `prove:fiber-execution` is intentionally separate and moves exactly 0.01 testnet CKB. It creates an ephemeral operator token, restricts execution to testnet, waits for final payment status, and verifies the channel balance delta before passing.
+
+`prove:fiber-invoice` creates a short-lived testnet invoice and proves that Pulse accepts its signed amount/currency/expiry, rejects amount substitution, and rejects a tampered signature without executing a payment.
+
+## Merchant invoice flow
+
+1. The merchant creates an invoice on the FNN node that should receive the payment.
+2. In Pulse, select **Invoice**, enter the exact CKB amount, and paste the encoded `fibt...` invoice.
+3. Pulse parses it through FNN and rejects a wrong network, amount, expiry, or signature.
+4. Share the generated self-contained link or QR code.
+5. The payer enables live Fiber and runs a route proof or an authorized payment.
+
+The encoded invoice is intentionally shareable. The payment preimage and node secret key are not included in the Pulse link.
 
 ## Live Fiber
 
