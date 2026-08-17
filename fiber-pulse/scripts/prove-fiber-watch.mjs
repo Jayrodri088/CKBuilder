@@ -52,7 +52,9 @@ const server = spawn(process.execPath, [nextBin, "start", "-p", String(port)], {
     FIBER_INVOICE_WATCH_COOLDOWN_MS: "1",
     FIBER_PAYMENT_COOLDOWN_MS: "1",
     FIBER_PAYMENT_MAX_CKB: "0.05",
-    FIBER_PAYMENT_EXECUTION_ENABLED: "false",
+    FIBER_PAYMENT_EXECUTION_ENABLED: "true",
+    FIBER_PAYMENT_EXECUTION_TOKEN: "watch-proof-token",
+    FIBER_INVOICE_CANCEL_COOLDOWN_MS: "1",
   },
   stdio: ["ignore", "pipe", "pipe"],
   windowsHide: true,
@@ -81,9 +83,30 @@ try {
   const bad = await watch(tampered, amountCkb);
   assert(bad.response.status === 400, "tampered invoice watch must return HTTP 400");
 
+  const denied = await fetch(`${origin}/api/fiber/invoice`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ invoice, amountCkb, cancel: true }),
+  });
+  assert(denied.status === 403, "cancel without operator token must return 403");
+
+  await sleep(20);
+  const cancelled = await fetch(`${origin}/api/fiber/invoice`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer watch-proof-token",
+    },
+    body: JSON.stringify({ invoice, amountCkb, cancel: true }),
+  });
+  const cancelledBody = await cancelled.json();
+  assert(cancelled.ok && cancelledBody.valid, "operator cancel must succeed on an open invoice");
+  assert(cancelledBody.status === "cancelled", `cancel should report cancelled, received ${cancelledBody.status}`);
+
   console.log("PASS merchant watch reads an unpaid invoice from FNN");
   console.log("PASS watch rejects a tampered invoice");
-  console.log("PASS watch does not settle or send a payment");
+  console.log("PASS cancel without an operator token is rejected");
+  console.log("PASS open invoice cancels and watch reports cancelled");
 } finally {
   server.kill();
 }

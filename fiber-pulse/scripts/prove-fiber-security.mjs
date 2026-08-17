@@ -54,11 +54,19 @@ try {
   });
   assert(grantDenied.status === 403, "grant issue without operator token must return 403");
 
+  const cancelDenied = await fetch(`${origin}/api/fiber/invoice`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ invoice: "fibt" + "a".repeat(120), amountCkb: 0.01, cancel: true }),
+  });
+  assert(cancelDenied.status === 403, "invoice cancel without operator token must return 403");
+
   console.log("PASS public Fiber snapshot is normalized and redacted");
   console.log("PASS arbitrary send_payment forwarding is blocked with HTTP 403");
   console.log("PASS payment proof policy exposes a 0.05 CKB cap");
   console.log("PASS oversized payment proof fails before execution");
   console.log("PASS payment grant issue is operator-gated");
+  console.log("PASS invoice cancel is operator-gated");
 } finally {
   server.kill();
 }

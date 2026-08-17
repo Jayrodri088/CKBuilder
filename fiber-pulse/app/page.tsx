@@ -901,7 +901,11 @@ function PulseApp() {
             </div>
             {createdReq?.fiberInvoice && (
               <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-                <InvoiceWatch invoice={createdReq.fiberInvoice} amountCkb={createdReq.amountCkb} />
+                <InvoiceWatch
+                  invoice={createdReq.fiberInvoice}
+                  amountCkb={createdReq.amountCkb}
+                  operatorToken={merchantToken}
+                />
                 <div style={styles.operatorBox}>
                   <strong style={{ fontFamily: "var(--font-display)", fontSize: 15 }}>
                     One-shot pay grant
@@ -950,7 +954,7 @@ function PulseApp() {
           <h2 style={styles.h2}>Recent on this device</h2>
           <ul style={styles.list}>
             {recent.slice(0, 6).map((r) => (
-              <li key={r.id}>
+              <li key={r.id} style={{ display: "grid", gap: 6 }}>
                 <button
                   type="button"
                   style={styles.listItem}
@@ -971,6 +975,20 @@ function PulseApp() {
                     {r.amountCkb} CKB · {r.status}
                   </span>
                 </button>
+                {r.fiberInvoice && (
+                  <button
+                    type="button"
+                    style={styles.secondary}
+                    onClick={() => {
+                      setCreatedReq(r);
+                      setShareUrl(buildShareUrl(window.location.origin, r));
+                      setIssuedGrant(undefined);
+                      window.location.hash = "create";
+                    }}
+                  >
+                    Watch / cancel invoice
+                  </button>
+                )}
               </li>
             ))}
           </ul>

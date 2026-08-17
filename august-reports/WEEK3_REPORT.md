@@ -74,6 +74,14 @@ Invoice validation, invoice watch, grant issue, and payment proof now write last
 
 ---
 
+## August 17 Progress
+
+I added merchant **cancel** for an open invoice. Cancel is operator-gated, uses the server-owned `cancel_invoice` CLI, then re-reads status so the watch panel can show `cancelled`. Recent Pulse requests that carry a signed invoice can reopen watch/cancel without recreating the share link.
+
+This is still a single-node merchant control, not a two-node pay.
+
+---
+
 ## Next
 
 1. Run a two-node invoice: create on a receiving FNN, pay from this node, confirm watch flips to paid and the payer `get_payment` is Success.

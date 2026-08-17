@@ -221,6 +221,26 @@ export async function watchFiberInvoice(encoded: string): Promise<{
   }
 }
 
+export async function cancelFiberInvoice(encoded: string) {
+  const inspected = await inspectFiberInvoice(encoded);
+  const rpcUrl = process.env.FIBER_RPC_URL?.trim() || "http://127.0.0.1:8227";
+  const cliPath = process.env.FNN_CLI_PATH?.trim() || "fnn-cli";
+  await runCli(cliPath, [
+    "invoice",
+    "cancel_invoice",
+    "--url",
+    rpcUrl,
+    "--payment-hash",
+    inspected.paymentHashFull,
+    "--output-format",
+    "json",
+    "--no-banner",
+    "--color",
+    "never",
+  ]);
+  return watchFiberInvoice(encoded);
+}
+
 export function expectedInvoiceCurrency(network: string) {
   if (network.toLowerCase() === "testnet") return "Fibt";
   if (network.toLowerCase() === "mainnet") return "Fib";

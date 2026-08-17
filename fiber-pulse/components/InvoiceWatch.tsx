@@ -11,12 +11,15 @@ type WatchResult = {
 export function InvoiceWatch({
   invoice,
   amountCkb,
+  operatorToken,
 }: {
   invoice: string;
   amountCkb: number;
+  operatorToken?: string;
 }) {
   const [result, setResult] = useState<WatchResult>();
   const [checking, setChecking] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const refresh = useCallback(async () => {
     setChecking(true);
@@ -45,9 +48,46 @@ export function InvoiceWatch({
     return () => clearInterval(id);
   }, [refresh]);
 
+  async function cancel() {
+    if (!operatorToken) {
+      setResult((current) => ({
+        ...current,
+        error: "Enter the operator token to cancel this invoice.",
+      }));
+      return;
+    }
+    setCancelling(true);
+    try {
+      const response = await fetch("/api/fiber/invoice", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${operatorToken}`,
+        },
+        body: JSON.stringify({ invoice, amountCkb, cancel: true }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.valid) {
+        setResult({ error: body.error ?? "Invoice cancel failed." });
+        return;
+      }
+      setResult({ status: body.status, settled: body.settled });
+    } catch {
+      setResult({ error: "Fiber node could not cancel this invoice." });
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   const status = result?.status ?? "unknown";
   const color =
-    status === "paid" ? "var(--lime)" : status === "open" ? "#f0c24b" : "var(--mute)";
+    status === "paid"
+      ? "var(--lime)"
+      : status === "open"
+        ? "#f0c24b"
+        : status === "cancelled"
+          ? "var(--ember)"
+          : "var(--mute)";
 
   return (
     <div
@@ -80,29 +120,51 @@ export function InvoiceWatch({
       <p style={{ margin: 0, fontSize: 12, color: "var(--mute)", lineHeight: 1.4 }}>
         {status === "paid"
           ? "FNN reports this invoice as paid on the receiving node."
-          : "Polls the receiving Fiber node for this invoice. A second merchant node is required for a true cross-node settle."}
+          : status === "cancelled"
+            ? "This invoice is cancelled and can no longer be paid."
+            : "Polls the receiving Fiber node for this invoice. A second merchant node is required for a true cross-node settle."}
       </p>
       {result?.error && (
         <p style={{ margin: 0, fontSize: 12, color: "var(--ember)" }}>{result.error}</p>
       )}
-      <button
-        type="button"
-        onClick={() => void refresh()}
-        disabled={checking}
-        style={{
-          justifySelf: "start",
-          border: "1px solid var(--line)",
-          borderRadius: 999,
-          padding: "6px 12px",
-          background: "transparent",
-          color: "var(--fog)",
-          cursor: "pointer",
-          fontSize: 12,
-          opacity: checking ? 0.5 : 1,
-        }}
-      >
-        {checking ? "Checking…" : "Check now"}
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          disabled={checking || cancelling}
+          style={{
+            border: "1px solid var(--line)",
+            borderRadius: 999,
+            padding: "6px 12px",
+            background: "transparent",
+            color: "var(--fog)",
+            cursor: "pointer",
+            fontSize: 12,
+            opacity: checking || cancelling ? 0.5 : 1,
+          }}
+        >
+          {checking ? "Checking…" : "Check now"}
+        </button>
+        {status === "open" && (
+          <button
+            type="button"
+            onClick={() => void cancel()}
+            disabled={cancelling}
+            style={{
+              border: "1px solid rgba(255,90,54,0.45)",
+              borderRadius: 999,
+              padding: "6px 12px",
+              background: "transparent",
+              color: "var(--ember)",
+              cursor: "pointer",
+              fontSize: 12,
+              opacity: cancelling ? 0.5 : 1,
+            }}
+          >
+            {cancelling ? "Cancelling…" : "Cancel invoice"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
