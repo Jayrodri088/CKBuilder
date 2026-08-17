@@ -21,6 +21,9 @@ run("install", "pnpm", ["install"]);
 run("pay-codec proof", "node", ["scripts/prove-codec.mjs"]);
 run("L1 handoff proof", "node", ["scripts/prove-l1-handoff.mjs"]);
 run("typecheck", "pnpm", ["exec", "tsc", "--noEmit"]);
+run("build", "pnpm", ["run", "build"]);
+run("fiber security proof", "node", ["scripts/prove-fiber-security.mjs"]);
+run("fiber grant proof", "node", ["scripts/prove-fiber-grant.mjs"]);
 
 console.log("\n--- live L1 (OffCKB) — skip if RPC down ---\n");
 {
@@ -56,8 +59,11 @@ for (const rel of [
   "lib/l1-fallback.ts",
   "lib/l1-lock.ts",
   "lib/session-grant.ts",
+  "lib/server/rate-limit.ts",
+  "lib/server/payment-grant.ts",
   "deployment/scripts.json",
   "components/QrCode.tsx",
+  "components/InvoiceWatch.tsx",
 ]) {
   if (!fs.existsSync(path.join(root, rel))) {
     console.error(`Missing ${rel}`);

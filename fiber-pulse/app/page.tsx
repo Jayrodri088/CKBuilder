@@ -38,6 +38,7 @@ import {
   scriptDeployed,
 } from "@/lib/l1-lock";
 import { L1FundMonitor } from "@/components/L1FundMonitor";
+import { InvoiceWatch } from "@/components/InvoiceWatch";
 import {
   assertSessionAllows,
   loadSessionGrant,
@@ -79,6 +80,10 @@ function PulseApp() {
   const [liveReceipt, setLiveReceipt] = useState<PaymentProofReceipt>();
   const [operatorMode, setOperatorMode] = useState(false);
   const [operatorToken, setOperatorToken] = useState("");
+  const [payGrant, setPayGrant] = useState("");
+  const [merchantToken, setMerchantToken] = useState("");
+  const [issuedGrant, setIssuedGrant] = useState<string>();
+  const [createdReq, setCreatedReq] = useState<PaymentRequest | null>(null);
   const [sessionCap, setSessionCapInput] = useState("20");
   const [session, setSession] = useState<SessionGrant | null>(null);
   const [l1Copied, setL1Copied] = useState(false);
@@ -231,7 +236,38 @@ function PulseApp() {
     saveRequest(req);
     const url = buildShareUrl(window.location.origin, req);
     setShareUrl(url);
+    setCreatedReq(req);
+    setIssuedGrant(undefined);
     setRecent(listRequests());
+  }
+
+  async function issueGrant() {
+    if (!createdReq) return;
+    setError(undefined);
+    setBusy(true);
+    try {
+      const response = await fetch("/api/fiber/grant", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${merchantToken}`,
+        },
+        body: JSON.stringify({
+          requestId: createdReq.id,
+          amountCkb: createdReq.amountCkb,
+          invoice: createdReq.fiberInvoice,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.issued) {
+        throw new Error(result.error ?? "Could not issue a one-shot payment grant.");
+      }
+      setIssuedGrant(result.grant);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Grant issue failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function applySessionCap() {
@@ -312,18 +348,20 @@ function PulseApp() {
         if (active.mode === "stream") {
           throw new Error("Live stream execution is not enabled yet. Use an invoice or explicit mock mode.");
         }
+        const grant = payGrant.trim();
+        const execute = operatorMode || Boolean(grant);
         const response = await fetch("/api/fiber/payment", {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            ...(operatorMode && operatorToken
-              ? { authorization: `Bearer ${operatorToken}` }
+            ...(execute && (grant || operatorToken)
+              ? { authorization: `Bearer ${grant || operatorToken}` }
               : {}),
           },
           body: JSON.stringify({
             amountCkb: active.amountCkb,
             requestId: active.id,
-            execute: operatorMode,
+            execute,
             invoice: active.fiberInvoice,
           }),
         });
@@ -634,6 +672,16 @@ function PulseApp() {
                     ? `Public route proofs are capped at ${livePolicy.maxCkb} CKB on ${livePolicy.allowedNetwork}.`
                     : "A trusted payment target has not been configured."}
                 </span>
+                <label style={styles.field}>
+                  <span>One-shot payment grant</span>
+                  <input
+                    value={payGrant}
+                    onChange={(event) => setPayGrant(event.target.value.trim())}
+                    placeholder="pls1...."
+                    autoComplete="off"
+                    style={{ ...styles.input, fontFamily: "var(--font-mono)" }}
+                  />
+                </label>
               </div>
             )}
             <div style={styles.actions}>
@@ -660,7 +708,9 @@ function PulseApp() {
                     : busy
                       ? "Checking Fiber..."
                       : preflight?.source === "live"
-                        ? operatorMode
+                        ? payGrant.trim()
+                          ? "Pay with one-shot grant"
+                          : operatorMode
                           ? "Execute live payment"
                           : "Run live route proof"
                       : active.mode === "stream"
@@ -849,6 +899,48 @@ function PulseApp() {
                 </div>
               </div>
             </div>
+            {createdReq?.fiberInvoice && (
+              <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+                <InvoiceWatch invoice={createdReq.fiberInvoice} amountCkb={createdReq.amountCkb} />
+                <div style={styles.operatorBox}>
+                  <strong style={{ fontFamily: "var(--font-display)", fontSize: 15 }}>
+                    One-shot pay grant
+                  </strong>
+                  <p style={{ ...styles.mute, margin: 0, fontSize: 12, lineHeight: 1.4 }}>
+                    Issue a single-use capability on this merchant device. The payer never
+                    needs the long-lived operator token.
+                  </p>
+                  <input
+                    type="password"
+                    value={merchantToken}
+                    onChange={(event) => setMerchantToken(event.target.value)}
+                    placeholder="Operator token"
+                    autoComplete="off"
+                    style={styles.input}
+                  />
+                  <button
+                    type="button"
+                    style={styles.secondary}
+                    disabled={busy || !merchantToken}
+                    onClick={() => void issueGrant()}
+                  >
+                    Issue one-shot grant
+                  </button>
+                  {issuedGrant && (
+                    <>
+                      <code style={styles.shareCode}>{issuedGrant}</code>
+                      <button
+                        type="button"
+                        style={styles.secondary}
+                        onClick={() => void navigator.clipboard.writeText(issuedGrant)}
+                      >
+                        Copy grant
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -886,8 +978,8 @@ function PulseApp() {
       )}
 
       <footer style={styles.footer}>
-        August product track — mock settlement, live channel preflight, and bounded Fiber proof.
-        Notes: <code style={styles.mono}>august-reports/WEEK2_REPORT.md</code>
+        August product track — merchant invoice watch, one-shot pay grants, and bounded Fiber proof.
+        Notes: <code style={styles.mono}>august-reports/WEEK3_REPORT.md</code>
       </footer>
     </main>
   );

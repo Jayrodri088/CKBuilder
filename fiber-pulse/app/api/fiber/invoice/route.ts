@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchPublicFiberSnapshot } from "@/lib/server/fiber-rpc";
-import { expectedInvoiceCurrency, parseFiberInvoice } from "@/lib/server/fiber-payment";
+import { expectedInvoiceCurrency, parseFiberInvoice, watchFiberInvoice } from "@/lib/server/fiber-payment";
+import { claimCooldown } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-let lastValidationAt = 0;
-
 export async function POST(request: NextRequest) {
-  let body: { invoice?: unknown; amountCkb?: unknown };
+  let body: { invoice?: unknown; amountCkb?: unknown; watch?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -16,16 +15,19 @@ export async function POST(request: NextRequest) {
   }
   const invoice = typeof body.invoice === "string" ? body.invoice.trim() : "";
   const requestedAmount = body.amountCkb === undefined ? undefined : Number(body.amountCkb);
+  const watch = body.watch === true;
   if (!invoice) return failure(400, "Fiber invoice is required.");
-  const now = Date.now();
-  const cooldownMs = Number(process.env.FIBER_INVOICE_VALIDATION_COOLDOWN_MS ?? 750);
-  if (now - lastValidationAt < cooldownMs) {
+  const cooldownMs = Number(
+    process.env[watch ? "FIBER_INVOICE_WATCH_COOLDOWN_MS" : "FIBER_INVOICE_VALIDATION_COOLDOWN_MS"] ??
+      (watch ? 2000 : 750),
+  );
+  const slot = claimCooldown(watch ? "invoice-watch" : "invoice-validate", cooldownMs);
+  if (!slot.ok) {
     return NextResponse.json(
-      { valid: false, error: "Invoice validation cooldown is active.", retryAfterMs: cooldownMs - (now - lastValidationAt) },
+      { valid: false, error: "Invoice cooldown is active.", retryAfterMs: slot.retryAfterMs },
       { status: 429, headers: { "cache-control": "no-store" } },
     );
   }
-  lastValidationAt = now;
   if (requestedAmount !== undefined && (!Number.isFinite(requestedAmount) || requestedAmount <= 0)) {
     return failure(400, "Payment request amount is invalid.");
   }
@@ -33,6 +35,31 @@ export async function POST(request: NextRequest) {
   const snapshot = await fetchPublicFiberSnapshot();
   if (!snapshot.reachable || !snapshot.node) return failure(409, "Fiber node is unavailable.");
   try {
+    if (watch) {
+      const watched = await watchFiberInvoice(invoice);
+      const expectedCurrency = expectedInvoiceCurrency(snapshot.node.network);
+      if (!expectedCurrency || watched.invoice.currency !== expectedCurrency) {
+        return failure(400, `Invoice currency does not match ${snapshot.node.network}.`);
+      }
+      if (
+        requestedAmount !== undefined &&
+        Math.round(watched.invoice.amountCkb * 100_000_000) !== Math.round(requestedAmount * 100_000_000)
+      ) {
+        return failure(400, "Invoice amount does not match the payment request.");
+      }
+      return NextResponse.json(
+        {
+          valid: true,
+          watch: true,
+          network: snapshot.node.network,
+          status: watched.status,
+          settled: watched.settled,
+          invoice: watched.invoice,
+        },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
+
     const summary = await parseFiberInvoice(invoice);
     const expectedCurrency = expectedInvoiceCurrency(snapshot.node.network);
     if (!expectedCurrency || summary.currency !== expectedCurrency) {

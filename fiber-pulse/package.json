@@ -16,6 +16,8 @@
     "prove:fiber-live": "node ./scripts/prove-fiber-live.mjs",
     "prove:fiber-execution": "node ./scripts/prove-fiber-execution.mjs",
     "prove:fiber-invoice": "node ./scripts/prove-fiber-invoice.mjs",
+    "prove:fiber-grant": "node ./scripts/prove-fiber-grant.mjs",
+    "prove:fiber-watch": "node ./scripts/prove-fiber-watch.mjs",
     "sync:deployment": "node ./scripts/sync-deployment.mjs",
     "run:all": "node ./scripts/run-all.mjs"
   },

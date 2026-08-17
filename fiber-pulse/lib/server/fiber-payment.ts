@@ -102,7 +102,12 @@ export async function runFiberPayment(input: {
   };
 }
 
-export async function parseFiberInvoice(encoded: string): Promise<FiberInvoiceSummary> {
+export type FiberInvoiceInspect = FiberInvoiceSummary & {
+  payeeFull: string;
+  paymentHashFull: string;
+};
+
+export async function inspectFiberInvoice(encoded: string): Promise<FiberInvoiceInspect> {
   if (!/^[a-z0-9]{100,4096}$/.test(encoded)) {
     throw new Error("Fiber invoice format is invalid.");
   }
@@ -140,10 +145,80 @@ export async function parseFiberInvoice(encoded: string): Promise<FiberInvoiceSu
     description: attribute("description"),
     payee: redact(payee)!,
     paymentHash: redact(invoice.data.payment_hash)!,
+    payeeFull: payee,
+    paymentHashFull: invoice.data.payment_hash,
     createdAt: new Date(timestamp).toISOString(),
     expiresAt: new Date(expiresAtMs).toISOString(),
     expired: Date.now() >= expiresAtMs,
   };
+}
+
+export async function parseFiberInvoice(encoded: string): Promise<FiberInvoiceSummary> {
+  const inspected = await inspectFiberInvoice(encoded);
+  return {
+    amountCkb: inspected.amountCkb,
+    currency: inspected.currency,
+    description: inspected.description,
+    payee: inspected.payee,
+    paymentHash: inspected.paymentHash,
+    createdAt: inspected.createdAt,
+    expiresAt: inspected.expiresAt,
+    expired: inspected.expired,
+  };
+}
+
+export type InvoiceWatchStatus = "open" | "paid" | "cancelled" | "expired" | "unknown";
+
+export async function watchFiberInvoice(encoded: string): Promise<{
+  status: InvoiceWatchStatus;
+  settled: boolean;
+  invoice: FiberInvoiceSummary;
+}> {
+  const inspected = await inspectFiberInvoice(encoded);
+  const summary: FiberInvoiceSummary = {
+    amountCkb: inspected.amountCkb,
+    currency: inspected.currency,
+    description: inspected.description,
+    payee: inspected.payee,
+    paymentHash: inspected.paymentHash,
+    createdAt: inspected.createdAt,
+    expiresAt: inspected.expiresAt,
+    expired: inspected.expired,
+  };
+  if (inspected.expired) {
+    return { status: "expired", settled: false, invoice: summary };
+  }
+  const rpcUrl = process.env.FIBER_RPC_URL?.trim() || "http://127.0.0.1:8227";
+  const cliPath = process.env.FNN_CLI_PATH?.trim() || "fnn-cli";
+  try {
+    const record = await runCli(cliPath, [
+      "invoice",
+      "get_invoice",
+      "--url",
+      rpcUrl,
+      "--payment-hash",
+      inspected.paymentHashFull,
+      "--output-format",
+      "json",
+      "--no-banner",
+      "--color",
+      "never",
+    ]) as { status?: string; invoice_status?: string };
+    const raw = String(record.status ?? record.invoice_status ?? "unknown").toLowerCase();
+    const status: InvoiceWatchStatus =
+      raw.includes("paid") || raw.includes("received") || raw === "success"
+        ? "paid"
+        : raw.includes("cancel")
+          ? "cancelled"
+          : raw.includes("expir")
+            ? "expired"
+            : raw.includes("open") || raw.includes("unpaid")
+              ? "open"
+              : "unknown";
+    return { status, settled: status === "paid", invoice: summary };
+  } catch {
+    return { status: inspected.expired ? "expired" : "unknown", settled: false, invoice: summary };
+  }
 }
 
 export function expectedInvoiceCurrency(network: string) {

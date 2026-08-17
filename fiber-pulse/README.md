@@ -10,6 +10,9 @@ Fiber Pulse is a consumer payment flow for CKB over Fiber: create a request, sha
 - Bounded `fnn-cli send_payment --dry-run` route proof
 - Operator-gated live keysend execution with a temporary bearer token
 - Merchant-directed settlement with signed Fiber invoice validation
+- Merchant invoice watch against the receiving FNN (`get_invoice`)
+- One-shot HMAC payment grants so the payer never holds the operator token
+- File-backed payment/invoice cooldowns that survive process restart
 - Receipts that distinguish mock settlement, dry-run proof, and successful live settlement
 - L1 hash-lock fallback, funding monitor, and Pay Link claim handoff
 
@@ -32,6 +35,8 @@ Open http://127.0.0.1:3060.
 pnpm exec tsc --noEmit
 pnpm run build
 pnpm run prove:fiber-security
+pnpm run prove:fiber-grant
+pnpm run prove:fiber-watch
 pnpm run prove:fiber-live
 pnpm run prove:l1-live
 pnpm run prove:l1-fund-claim
@@ -45,13 +50,18 @@ With FNN running, `prove:fiber-live` discovers a ready CKB channel and runs a 0.
 
 `prove:fiber-invoice` creates a short-lived testnet invoice and proves that Pulse accepts its signed amount/currency/expiry, rejects amount substitution, and rejects a tampered signature without executing a payment.
 
+`prove:fiber-grant` issues a one-shot grant with an operator token, proves it is bound to request ID and amount, and fails closed when Fiber is unreachable.
+
+`prove:fiber-watch` creates an unpaid invoice and checks merchant watch. It skips if FNN is down.
+
 ## Merchant invoice flow
 
 1. The merchant creates an invoice on the FNN node that should receive the payment.
 2. In Pulse, select **Invoice**, enter the exact CKB amount, and paste the encoded `fibt...` invoice.
 3. Pulse parses it through FNN and rejects a wrong network, amount, expiry, or signature.
 4. Share the generated self-contained link or QR code.
-5. The payer enables live Fiber and runs a route proof or an authorized payment.
+5. On the merchant device, watch settlement and optionally issue a one-shot pay grant.
+6. The payer enables live Fiber and runs a route proof, or pays with that grant.
 
 The encoded invoice is intentionally shareable. The payment preimage and node secret key are not included in the Pulse link.
 

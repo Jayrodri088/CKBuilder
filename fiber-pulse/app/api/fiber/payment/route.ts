@@ -8,11 +8,11 @@ import {
   runFiberPayment,
   validExecutionToken,
 } from "@/lib/server/fiber-payment";
+import { consumePaymentGrant, assertPaymentGrant, looksLikePaymentGrant } from "@/lib/server/payment-grant";
+import { claimCooldown } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-let lastProofAt = 0;
 
 export async function GET() {
   const policy = paymentPolicy();
@@ -52,18 +52,27 @@ export async function POST(request: NextRequest) {
     return failure(403, "Live Fiber execution is disabled on this deployment.");
   }
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null;
-  if (execute && !validExecutionToken(bearer)) {
-    return failure(403, "A valid operator token is required for live execution.");
+  if (execute) {
+    if (looksLikePaymentGrant(bearer)) {
+      const preview = assertPaymentGrant({
+        token: bearer!,
+        requestId,
+        amountCkb,
+        invoice,
+      });
+      if (!preview.ok) return failure(403, preview.error);
+    } else if (!validExecutionToken(bearer)) {
+      return failure(403, "A valid operator token or unused payment grant is required for live execution.");
+    }
   }
 
-  const now = Date.now();
-  if (now - lastProofAt < policy.cooldownMs) {
+  const slot = claimCooldown("payment", policy.cooldownMs);
+  if (!slot.ok) {
     return NextResponse.json(
-      { error: "Payment proof cooldown is active.", retryAfterMs: policy.cooldownMs - (now - lastProofAt) },
+      { error: "Payment proof cooldown is active.", retryAfterMs: slot.retryAfterMs },
       { status: 429, headers: { "cache-control": "no-store" } },
     );
   }
-  lastProofAt = now;
 
   const snapshot = await fetchPublicFiberSnapshot();
   if (!snapshot.reachable || !snapshot.node) {
@@ -92,6 +101,15 @@ export async function POST(request: NextRequest) {
   }
   if (snapshot.maxSendableCkb < amountCkb) {
     return failure(409, "Ready channels do not have enough outbound CKB liquidity.");
+  }
+  if (execute && looksLikePaymentGrant(bearer)) {
+    const consumed = consumePaymentGrant({
+      token: bearer!,
+      requestId,
+      amountCkb,
+      invoice,
+    });
+    if (!consumed.ok) return failure(403, consumed.error);
   }
 
   try {

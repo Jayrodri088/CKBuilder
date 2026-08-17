@@ -112,4 +112,10 @@ This command moves 0.01 testnet CKB. It discovers the ready channel target, gene
 
 ## Current boundary
 
-The in-memory cooldown is suitable for a local or single-instance MVP. A public multi-instance deployment should replace it with shared rate limiting and authenticated, single-use payment capabilities.
+The in-memory cooldown is replaced by a file-backed limiter in `.data/`. That is enough for a local or single-machine restart. A public multi-instance deployment should still move the limiter onto shared storage.
+
+Live execution can use a one-shot payment grant instead of putting the operator token on the payer device. The merchant issues `pls1.` grants from the create screen; each grant is HMAC-signed and bound to request ID, amount, and invoice fingerprint. The payer spends it once.
+
+## Merchant settlement watch
+
+After sharing a signed invoice, Pulse polls `get_invoice` on the receiving FNN and shows `open` / `paid` / `cancelled` / `expired`. This is the merchant-side counterpart to payer execution. A true two-node settle still needs the invoice created on a separate receiving node.

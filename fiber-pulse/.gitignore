@@ -7,3 +7,4 @@ out
 tsconfig.tsbuildinfo
 .secrets/
 artifacts/*.json
+.data/

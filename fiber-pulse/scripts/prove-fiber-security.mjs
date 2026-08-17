@@ -47,10 +47,18 @@ try {
   });
   assert(oversized.status === 400, "oversized payment proof must be rejected before node access");
 
+  const grantDenied = await fetch(`${origin}/api/fiber/grant`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ amountCkb: 0.01, requestId: "security-proof" }),
+  });
+  assert(grantDenied.status === 403, "grant issue without operator token must return 403");
+
   console.log("PASS public Fiber snapshot is normalized and redacted");
   console.log("PASS arbitrary send_payment forwarding is blocked with HTTP 403");
   console.log("PASS payment proof policy exposes a 0.05 CKB cap");
   console.log("PASS oversized payment proof fails before execution");
+  console.log("PASS payment grant issue is operator-gated");
 } finally {
   server.kill();
 }
