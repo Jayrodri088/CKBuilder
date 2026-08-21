@@ -2,7 +2,7 @@
 
 ## Overview
 
-This report covers work from the week of **August 4, 2026**. After Pay Link’s Phase A Fiber probe, I shifted into Fiber Part 2 product work: a consumer pay flow where someone can create a request, share it, run preflight, settle when Fiber capacity allows, and fall back to L1 hash-lock when it does not.
+This phase shifted from Pay Link's Fiber probe into Fiber Part 2 product work: a consumer pay flow where someone can create a request, share it, run preflight, settle when Fiber capacity allows, and fall back to L1 hash-lock when it does not.
 
 The main deliverable is `fiber-pulse/`. Live Fiber invoice settle still depends on having the local FNN node up; the L1 dual-rail path is already proven on OffCKB.
 

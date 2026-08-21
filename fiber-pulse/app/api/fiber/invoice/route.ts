@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchPublicFiberSnapshot } from "@/lib/server/fiber-rpc";
 import {
   cancelFiberInvoice,
+  createFiberInvoice,
   expectedInvoiceCurrency,
   parseFiberInvoice,
   validExecutionToken,
@@ -13,7 +14,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  let body: { invoice?: unknown; amountCkb?: unknown; watch?: unknown; cancel?: unknown };
+  let body: {
+    invoice?: unknown;
+    amountCkb?: unknown;
+    watch?: unknown;
+    cancel?: unknown;
+    create?: unknown;
+    description?: unknown;
+    expirySeconds?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -23,22 +32,25 @@ export async function POST(request: NextRequest) {
   const requestedAmount = body.amountCkb === undefined ? undefined : Number(body.amountCkb);
   const watch = body.watch === true;
   const cancel = body.cancel === true;
-  if (!invoice) return failure(400, "Fiber invoice is required.");
-  if (cancel) {
+  const create = body.create === true;
+  if (!create && !invoice) return failure(400, "Fiber invoice is required.");
+  if (cancel || create) {
     const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null;
     if (!validExecutionToken(bearer)) {
-      return failure(403, "A valid operator token is required to cancel an invoice.");
+      return failure(403, `A valid operator token is required to ${create ? "create" : "cancel"} an invoice.`);
     }
   }
-  const cooldownKey = cancel ? "invoice-cancel" : watch ? "invoice-watch" : "invoice-validate";
+  const cooldownKey = create ? "invoice-create" : cancel ? "invoice-cancel" : watch ? "invoice-watch" : "invoice-validate";
   const cooldownMs = Number(
     process.env[
-      cancel
+      create
+        ? "FIBER_INVOICE_CREATE_COOLDOWN_MS"
+        : cancel
         ? "FIBER_INVOICE_CANCEL_COOLDOWN_MS"
         : watch
           ? "FIBER_INVOICE_WATCH_COOLDOWN_MS"
           : "FIBER_INVOICE_VALIDATION_COOLDOWN_MS"
-    ] ?? (cancel ? 1000 : watch ? 2000 : 750),
+    ] ?? (create || cancel ? 1000 : watch ? 2000 : 750),
   );
   const slot = claimCooldown(cooldownKey, cooldownMs);
   if (!slot.ok) {
@@ -54,6 +66,35 @@ export async function POST(request: NextRequest) {
   const snapshot = await fetchPublicFiberSnapshot();
   if (!snapshot.reachable || !snapshot.node) return failure(409, "Fiber node is unavailable.");
   try {
+    if (create) {
+      if (requestedAmount === undefined) return failure(400, "Payment request amount is required.");
+      const currency = expectedInvoiceCurrency(snapshot.node.network);
+      if (!currency) return failure(400, `Invoice creation is not supported on ${snapshot.node.network}.`);
+      const description = typeof body.description === "string" ? body.description.trim() : "";
+      const expirySeconds = Number(body.expirySeconds ?? 1800);
+      if (!description || description.length > 120) {
+        return failure(400, "Invoice description must be between 1 and 120 characters.");
+      }
+      if (!Number.isSafeInteger(expirySeconds) || expirySeconds < 60 || expirySeconds > 86_400) {
+        return failure(400, "Invoice expiry must be between 60 seconds and 24 hours.");
+      }
+      const created = await createFiberInvoice({
+        amountCkb: requestedAmount,
+        currency,
+        description,
+        expirySeconds,
+      });
+      return NextResponse.json(
+        {
+          valid: true,
+          created: true,
+          network: snapshot.node.network,
+          invoiceAddress: created.encoded,
+          invoice: created.summary,
+        },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
     if (watch || cancel) {
       const watched = cancel ? await cancelFiberInvoice(invoice) : await watchFiberInvoice(invoice);
       const expectedCurrency = expectedInvoiceCurrency(snapshot.node.network);

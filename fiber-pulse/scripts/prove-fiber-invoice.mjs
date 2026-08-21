@@ -43,9 +43,11 @@ const server = spawn(process.execPath, [nextBin, "start", "-p", String(port)], {
     FIBER_PAYMENT_TARGET_PUBKEY: "",
     FIBER_INVOICE_PAYMENTS_ENABLED: "true",
     FIBER_INVOICE_VALIDATION_COOLDOWN_MS: "1",
+    FIBER_INVOICE_CREATE_COOLDOWN_MS: "1",
     FIBER_PAYMENT_COOLDOWN_MS: "1",
     FIBER_PAYMENT_MAX_CKB: "0.05",
     FIBER_PAYMENT_EXECUTION_ENABLED: "false",
+    FIBER_PAYMENT_EXECUTION_TOKEN: "invoice-proof-token",
   },
   stdio: ["ignore", "pipe", "pipe"],
   windowsHide: true,
@@ -57,6 +59,25 @@ server.stderr.on("data", (chunk) => { serverOutput += chunk.toString(); });
 
 try {
   await waitForServer();
+
+  const createResponse = await fetch(`${origin}/api/fiber/invoice`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer invoice-proof-token",
+    },
+    body: JSON.stringify({
+      create: true,
+      amountCkb,
+      description: "Fiber Pulse API creation proof",
+      expirySeconds: 600,
+    }),
+  });
+  const createdByApi = await createResponse.json();
+  assert(createResponse.ok && createdByApi.created, "operator must be able to create a signed invoice");
+  assert(typeof createdByApi.invoiceAddress === "string", "creation must return an encoded invoice");
+  assert(createdByApi.invoice.amountCkb === amountCkb, "created invoice amount must match the request");
+  assert(!JSON.stringify(createdByApi).includes(rpcUrl), "creation response must not expose the private RPC URL");
 
   const valid = await validate(invoice, amountCkb);
   assert(valid.response.ok && valid.body.valid, "signed invoice must validate");
@@ -91,6 +112,7 @@ try {
   assert(mismatchPaymentBody.error.includes("amount"), "payment mismatch must be explicit");
 
   console.log("PASS signed Fibt invoice parsed and verified against testnet");
+  console.log("PASS operator-gated API creates a signed invoice without exposing private node configuration");
   console.log("PASS invoice amount is bound to the payment request");
   console.log("PASS tampered invoice is rejected");
   console.log("PASS validation and mismatch proofs execute no payment");

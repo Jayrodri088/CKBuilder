@@ -63,6 +63,8 @@ function PulseApp() {
   const [streamCap, setStreamCap] = useState("1");
   const [tickCkb, setTickCkb] = useState("0.05");
   const [fiberInvoice, setFiberInvoice] = useState("");
+  const [invoiceExpiry, setInvoiceExpiry] = useState("1800");
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [tryLive, setTryLive] = useState(false);
   const [liveOk, setLiveOk] = useState(false);
   const [liveSnapshot, setLiveSnapshot] = useState<FiberSnapshot>();
@@ -267,6 +269,49 @@ function PulseApp() {
       setError(err instanceof Error ? err.message : "Grant issue failed");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function createSignedInvoice() {
+    const amount = Number(amountCkb);
+    const expirySeconds = Number(invoiceExpiry);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Enter a valid CKB amount before creating an invoice.");
+      return;
+    }
+    if (!Number.isSafeInteger(expirySeconds) || expirySeconds < 60 || expirySeconds > 86_400) {
+      setError("Invoice expiry must be between 60 seconds and 24 hours.");
+      return;
+    }
+    if (!merchantToken) {
+      setError("Enter the operator token to create an invoice on this Fiber node.");
+      return;
+    }
+    setError(undefined);
+    setCreatingInvoice(true);
+    try {
+      const response = await fetch("/api/fiber/invoice", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${merchantToken}`,
+        },
+        body: JSON.stringify({
+          create: true,
+          amountCkb: amount,
+          description: label.trim() || "Payment",
+          expirySeconds,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.created || typeof result.invoiceAddress !== "string") {
+        throw new Error(result.error ?? "Fiber invoice creation failed.");
+      }
+      setFiberInvoice(result.invoiceAddress);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fiber invoice creation failed.");
+    } finally {
+      setCreatingInvoice(false);
     }
   }
 
@@ -856,19 +901,59 @@ function PulseApp() {
             </div>
           )}
           {mode === "invoice" && (
-            <label style={styles.field}>
-              <span>Signed Fiber invoice (optional)</span>
-              <textarea
-                value={fiberInvoice}
-                onChange={(event) => setFiberInvoice(event.target.value.trim())}
-                placeholder="fibt..."
-                rows={4}
-                style={{ ...styles.input, resize: "vertical", fontFamily: "var(--font-mono)" }}
-              />
-              <small style={styles.mute}>
-                Validated against FNN before sharing. The signed amount must match this request.
-              </small>
-            </label>
+            <div style={{ display: "grid", gap: 10 }}>
+              <label style={styles.field}>
+                <span>Signed Fiber invoice (optional)</span>
+                <textarea
+                  value={fiberInvoice}
+                  onChange={(event) => setFiberInvoice(event.target.value.trim())}
+                  placeholder="Create one below or paste fibt..."
+                  rows={4}
+                  style={{ ...styles.input, resize: "vertical", fontFamily: "var(--font-mono)" }}
+                />
+                <small style={styles.mute}>
+                  Validated against FNN before sharing. The signed amount must match this request.
+                </small>
+              </label>
+              <div style={styles.operatorBox}>
+                <strong style={{ fontFamily: "var(--font-display)", fontSize: 14 }}>
+                  Create on this merchant node
+                </strong>
+                <div style={styles.streamGrid}>
+                  <label style={styles.field}>
+                    <span>Invoice expiry (seconds)</span>
+                    <input
+                      value={invoiceExpiry}
+                      onChange={(event) => setInvoiceExpiry(event.target.value)}
+                      inputMode="numeric"
+                      style={styles.input}
+                    />
+                  </label>
+                  <label style={styles.field}>
+                    <span>Operator token</span>
+                    <input
+                      type="password"
+                      value={merchantToken}
+                      onChange={(event) => setMerchantToken(event.target.value)}
+                      placeholder="Temporary operator token"
+                      autoComplete="off"
+                      style={styles.input}
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  style={styles.secondary}
+                  disabled={creatingInvoice}
+                  onClick={() => void createSignedInvoice()}
+                >
+                  {creatingInvoice ? "Creating signed invoice..." : "Create signed Fiber invoice"}
+                </button>
+                <small style={styles.mute}>
+                  The RPC and node key remain server-side. Only the signed invoice is returned.
+                </small>
+              </div>
+            </div>
           )}
           {error && <p style={styles.error}>{error}</p>}
           <button type="submit" style={{ ...styles.primary, opacity: busy ? 0.6 : 1 }} disabled={busy}>
@@ -914,14 +999,7 @@ function PulseApp() {
                     Issue a single-use capability on this merchant device. The payer never
                     needs the long-lived operator token.
                   </p>
-                  <input
-                    type="password"
-                    value={merchantToken}
-                    onChange={(event) => setMerchantToken(event.target.value)}
-                    placeholder="Operator token"
-                    autoComplete="off"
-                    style={styles.input}
-                  />
+                  <small style={styles.mute}>Uses the operator token entered in the invoice form.</small>
                   <button
                     type="button"
                     style={styles.secondary}

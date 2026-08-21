@@ -119,3 +119,5 @@ Live execution can use a one-shot payment grant instead of putting the operator 
 ## Merchant settlement watch
 
 After sharing a signed invoice, Pulse polls `get_invoice` on the receiving FNN and shows `open` / `paid` / `cancelled` / `expired`. This is the merchant-side counterpart to payer execution. A true two-node settle still needs the invoice created on a separate receiving node.
+
+The merchant screen can also call `new_invoice` through the narrow server API. Creation requires the operator token, accepts only a positive CKB amount, a bounded description, and an expiry from 60 seconds to 24 hours. Pulse derives the invoice currency from the active node network and returns only the signed invoice plus its redacted summary.

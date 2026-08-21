@@ -61,12 +61,25 @@ try {
   });
   assert(cancelDenied.status === 403, "invoice cancel without operator token must return 403");
 
+  const createDenied = await fetch(`${origin}/api/fiber/invoice`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      create: true,
+      amountCkb: 0.01,
+      description: "Unauthorized invoice",
+      expirySeconds: 600,
+    }),
+  });
+  assert(createDenied.status === 403, "invoice creation without operator token must return 403");
+
   console.log("PASS public Fiber snapshot is normalized and redacted");
   console.log("PASS arbitrary send_payment forwarding is blocked with HTTP 403");
   console.log("PASS payment proof policy exposes a 0.05 CKB cap");
   console.log("PASS oversized payment proof fails before execution");
   console.log("PASS payment grant issue is operator-gated");
   console.log("PASS invoice cancel is operator-gated");
+  console.log("PASS invoice creation is operator-gated");
 } finally {
   server.kill();
 }

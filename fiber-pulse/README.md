@@ -10,6 +10,7 @@ Fiber Pulse is a consumer payment flow for CKB over Fiber: create a request, sha
 - Bounded `fnn-cli send_payment --dry-run` route proof
 - Operator-gated live keysend execution with a temporary bearer token
 - Merchant-directed settlement with signed Fiber invoice validation
+- Operator-gated signed invoice creation from the merchant UI
 - Merchant invoice watch against the receiving FNN (`get_invoice`)
 - One-shot HMAC payment grants so the payer never holds the operator token
 - File-backed payment/invoice cooldowns that survive process restart
@@ -56,12 +57,11 @@ With FNN running, `prove:fiber-live` discovers a ready CKB channel and runs a 0.
 
 ## Merchant invoice flow
 
-1. The merchant creates an invoice on the FNN node that should receive the payment.
-2. In Pulse, select **Invoice**, enter the exact CKB amount, and paste the encoded `fibt...` invoice.
-3. Pulse parses it through FNN and rejects a wrong network, amount, expiry, or signature.
-4. Share the generated self-contained link or QR code.
-5. On the merchant device, watch settlement and optionally issue a one-shot pay grant.
-6. The payer enables live Fiber and runs a route proof, or pays with that grant.
+1. In Pulse, select **Invoice**, enter the exact CKB amount and description, then create a signed invoice with the temporary operator token. An externally created `fibt...` invoice can still be pasted instead.
+2. Pulse validates the signed amount, network, recipient, expiry, and signature against the receiving FNN.
+3. Share the generated self-contained link or QR code.
+4. On the merchant device, watch settlement and optionally issue a one-shot pay grant.
+5. The payer enables live Fiber and runs a route proof, or pays with that grant.
 
 The encoded invoice is intentionally shareable. The payment preimage and node secret key are not included in the Pulse link.
 

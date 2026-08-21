@@ -2,7 +2,7 @@
 
 ## Overview
 
-This report covers work beginning **August 16, 2026**. Week 2 left Fiber Pulse able to parse a merchant invoice and pay it from the payer node, but the merchant still could not watch settlement, and live execution still meant typing the long-lived operator token on the payer screen.
+The previous phase left Fiber Pulse able to parse a merchant invoice and pay it from the payer node, but the merchant still could not watch settlement, and live execution still meant typing the long-lived operator token on the payer screen.
 
 I treated those as product gaps, not infra chores. The week’s work is in `fiber-pulse/`: merchant invoice watch, one-shot payment grants, and a file-backed limiter so cooldowns survive a process restart.
 
@@ -13,6 +13,7 @@ I treated those as product gaps, not infra chores. The week’s work is in `fibe
 | Piece | Purpose |
 |--------|---------|
 | Merchant settlement watch | Poll FNN `get_invoice` after sharing a signed invoice |
+| In-app invoice creation | Operator-gated `new_invoice` without exposing node credentials |
 | One-shot pay grants | HMAC capability bound to request ID, amount, and invoice |
 | Grant API | `POST /api/fiber/grant` — operator-gated issue only |
 | Payer grant field | Execute once without holding the operator token |
@@ -59,7 +60,8 @@ Invoice validation, invoice watch, grant issue, and payment proof now write last
 |--------|--------|
 | `pnpm exec tsc --noEmit` | Pass |
 | `pnpm run build` | Pass; `/api/fiber/grant` is a dynamic route |
-| `pnpm run prove:fiber-security` | Pass, including grant issue 403 |
+| `pnpm run prove:fiber-security` | Pass, including grant, invoice-create, and invoice-cancel authorization checks |
+| `pnpm run prove:fiber-invoice` | Live creation proof added; requires the local FNN to be running |
 | `pnpm run prove:fiber-grant` | Pass: issue, request/amount binding, fail-closed if Fiber is down |
 | `pnpm run prove:fiber-watch` | Skips unless FNN is already running |
 
@@ -74,11 +76,17 @@ Invoice validation, invoice watch, grant issue, and payment proof now write last
 
 ---
 
-## August 17 Progress
+## Merchant Invoice Control
 
 I added merchant **cancel** for an open invoice. Cancel is operator-gated, uses the server-owned `cancel_invoice` CLI, then re-reads status so the watch panel can show `cancelled`. Recent Pulse requests that carry a signed invoice can reopen watch/cancel without recreating the share link.
 
 This is still a single-node merchant control, not a two-node pay.
+
+## In-App Invoice Creation
+
+I removed the remaining CLI-only step from the merchant workflow. Pulse can now create a signed invoice directly on the receiving FNN after validating the amount, description, and bounded expiry. The operation requires the temporary operator token; the browser receives the shareable invoice and a redacted summary, never the private RPC address, node key, payment preimage, or authentication configuration.
+
+An externally generated invoice can still be pasted and validated. This preserves compatibility with merchants that operate FNN separately while giving the integrated deployment a complete create, share, watch, grant, and cancel workflow.
 
 ---
 

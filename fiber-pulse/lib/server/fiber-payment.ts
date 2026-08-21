@@ -167,6 +167,61 @@ export async function parseFiberInvoice(encoded: string): Promise<FiberInvoiceSu
   };
 }
 
+export async function createFiberInvoice(input: {
+  amountCkb: number;
+  currency: string;
+  description: string;
+  expirySeconds: number;
+}) {
+  if (!Number.isFinite(input.amountCkb) || input.amountCkb <= 0) {
+    throw new Error("Fiber invoice amount is invalid.");
+  }
+  const amountShannons = Math.round(input.amountCkb * 100_000_000);
+  if (!Number.isSafeInteger(amountShannons) || amountShannons <= 0) {
+    throw new Error("Fiber invoice amount must resolve to a positive safe shannon value.");
+  }
+  if (!/^(Fib|Fibt)$/.test(input.currency)) {
+    throw new Error("Fiber invoice currency is invalid.");
+  }
+  const description = input.description.trim();
+  if (!description || description.length > 120) {
+    throw new Error("Fiber invoice description must be between 1 and 120 characters.");
+  }
+  if (!Number.isSafeInteger(input.expirySeconds) || input.expirySeconds < 60 || input.expirySeconds > 86_400) {
+    throw new Error("Fiber invoice expiry must be between 60 seconds and 24 hours.");
+  }
+
+  const rpcUrl = process.env.FIBER_RPC_URL?.trim() || "http://127.0.0.1:8227";
+  const cliPath = process.env.FNN_CLI_PATH?.trim() || "fnn-cli";
+  const result = await runCli(cliPath, [
+    "invoice",
+    "new_invoice",
+    "--url",
+    rpcUrl,
+    "--amount",
+    String(amountShannons),
+    "--currency",
+    input.currency,
+    "--description",
+    description,
+    "--expiry",
+    String(input.expirySeconds),
+    "--output-format",
+    "json",
+    "--no-banner",
+    "--color",
+    "never",
+  ]) as { invoice_address?: unknown; invoice?: unknown };
+  const encoded = typeof result.invoice_address === "string"
+    ? result.invoice_address
+    : typeof result.invoice === "string"
+      ? result.invoice
+      : "";
+  if (!encoded) throw new Error("FNN did not return a signed invoice.");
+
+  return { encoded, summary: await parseFiberInvoice(encoded) };
+}
+
 export type InvoiceWatchStatus = "open" | "paid" | "cancelled" | "expired" | "unknown";
 
 export async function watchFiberInvoice(encoded: string): Promise<{
