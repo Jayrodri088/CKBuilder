@@ -121,3 +121,11 @@ Live execution can use a one-shot payment grant instead of putting the operator 
 After sharing a signed invoice, Pulse polls `get_invoice` on the receiving FNN and shows `open` / `paid` / `cancelled` / `expired`. This is the merchant-side counterpart to payer execution. A true two-node settle still needs the invoice created on a separate receiving node.
 
 The merchant screen can also call `new_invoice` through the narrow server API. Creation requires the operator token, accepts only a positive CKB amount, a bounded description, and an expiry from 60 seconds to 24 hours. Pulse derives the invoice currency from the active node network and returns only the signed invoice plus its redacted summary.
+
+## Durable payment reconciliation
+
+When an executed payment returns a payment hash, Pulse immediately creates a random tracking capability before waiting for final settlement. The full payment hash stays in `.data/payment-tracker.json`; the browser stores only the opaque tracking ID and a redacted receipt. This lets the payer refresh and later reconcile `Created` or in-flight payments through the same narrow payment API.
+
+Tracking records expire after `FIBER_PAYMENT_TRACKING_TTL_MS` (24 hours by default), are capped to 500 records, and return distinct invalid, missing, and expired responses. Terminal `Success` and `Failed` records can be read without contacting FNN again. Non-terminal records query server-owned `get_payment`. The file store is suitable for one application instance; use a transactional shared store and per-client rate limiting before horizontal deployment.
+
+The tracking ID is a short-lived bearer capability for reading that payment's status. Pulse deliberately excludes it from share-link encoding; operators should also exclude it from public logs and analytics payloads.

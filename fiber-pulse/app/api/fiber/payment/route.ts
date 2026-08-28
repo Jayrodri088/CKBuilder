@@ -6,6 +6,7 @@ import {
   expectedInvoiceCurrency,
   parseFiberInvoice,
   runFiberPayment,
+  reconcileFiberPayment,
   validExecutionToken,
 } from "@/lib/server/fiber-payment";
 import { consumePaymentGrant, assertPaymentGrant, looksLikePaymentGrant } from "@/lib/server/payment-grant";
@@ -23,14 +24,35 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const policy = paymentPolicy();
-  if (!policy.enabled) return failure(403, "Fiber payment proof is disabled.");
 
-  let body: { amountCkb?: unknown; requestId?: unknown; execute?: unknown; invoice?: unknown };
+  let body: { amountCkb?: unknown; requestId?: unknown; execute?: unknown; invoice?: unknown; trackingId?: unknown };
   try {
     body = await request.json();
   } catch {
     return failure(400, "Invalid JSON body.");
   }
+
+  const trackingId = typeof body.trackingId === "string" ? body.trackingId.trim() : "";
+  if (trackingId) {
+    const slot = claimCooldown("payment-track", Number(process.env.FIBER_PAYMENT_TRACKING_COOLDOWN_MS ?? 1000));
+    if (!slot.ok) {
+      return NextResponse.json(
+        { error: "Payment status cooldown is active.", retryAfterMs: slot.retryAfterMs },
+        { status: 429, headers: { "cache-control": "no-store" } },
+      );
+    }
+    try {
+      const tracked = await reconcileFiberPayment(trackingId);
+      if (tracked.state === "invalid") return failure(400, "Payment tracking ID is invalid.");
+      if (tracked.state === "not_found") return failure(404, "Payment tracking record was not found.");
+      if (tracked.state === "expired") return failure(410, "Payment tracking record has expired.");
+      return NextResponse.json(tracked.receipt, { headers: { "cache-control": "no-store" } });
+    } catch {
+      return failure(502, "Fiber payment status could not be refreshed.");
+    }
+  }
+
+  if (!policy.enabled) return failure(403, "Fiber payment proof is disabled.");
 
   const amountCkb = Number(body.amountCkb);
   const requestId = typeof body.requestId === "string" ? body.requestId : "";

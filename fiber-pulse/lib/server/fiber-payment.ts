@@ -3,6 +3,13 @@ import { timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { PaymentProofReceipt } from "../payment-proof";
 import type { FiberInvoiceSummary } from "../payment-proof";
+import type { PaymentStatusReceipt } from "../payment-proof";
+import {
+  findTrackedPayment,
+  registerTrackedPayment,
+  updateTrackedPayment,
+  type TrackedPayment,
+} from "./payment-tracker";
 
 const execFileAsync = promisify(execFile);
 
@@ -75,10 +82,38 @@ export async function runFiberPayment(input: {
     fee?: string;
     failed_error?: string | null;
   };
-  if (input.execute && result.payment_hash && !terminalStatus(result.status)) {
-    result = await waitForFinalPayment(cliPath, rpcUrl, result.payment_hash, result);
+  let tracked: TrackedPayment | undefined;
+  if (input.execute && result.payment_hash) {
+    try {
+      tracked = registerTrackedPayment({
+        paymentHash: result.payment_hash,
+        requestId: input.requestId,
+        amountCkb: input.amountCkb,
+        status: result.status ?? "unknown",
+        fee: result.fee,
+      });
+    } catch {
+      console.error("Fiber payment tracking record could not be created");
+    }
   }
-  if (result.failed_error) throw new Error(`Fiber payment failed: ${result.failed_error}`);
+  if (input.execute && result.payment_hash && !terminalStatus(result.status)) {
+    try {
+      result = await waitForFinalPayment(cliPath, rpcUrl, result.payment_hash, result);
+    } catch {
+      console.error("Fiber payment follow-up polling failed; returning the submitted state");
+    }
+  }
+  if (tracked) {
+    try {
+      tracked = updateTrackedPayment(tracked.id, {
+        status: result.status ?? "unknown",
+        fee: result.fee,
+      }) ?? tracked;
+    } catch {
+      console.error("Fiber payment tracking record could not be updated");
+    }
+  }
+  if (result.failed_error && !input.execute) throw new Error(`Fiber payment failed: ${result.failed_error}`);
 
   const status = result.status ?? "unknown";
   const settled = input.execute && status.toUpperCase() === "SUCCESS";
@@ -91,15 +126,52 @@ export async function runFiberPayment(input: {
     asset: "CKB",
     target: input.invoice ? "merchant invoice" : "configured Fiber peer",
     paymentHash: redact(result.payment_hash),
+    trackingId: tracked?.id,
     status,
     fee: result.fee,
     generatedAt: new Date().toISOString(),
     nextAction: input.execute
       ? settled
         ? "Fiber payment settled successfully."
-        : "Payment was submitted; verify its final status before treating it as settled."
+        : status.toUpperCase() === "FAILED"
+          ? "Fiber payment failed. Review channel readiness and retry with a new authorization."
+          : "Payment was submitted; verify its final status before treating it as settled."
       : "Route proof succeeded. Live execution remains operator-gated.",
   };
+}
+
+export async function reconcileFiberPayment(trackingId: string): Promise<
+  | { state: "invalid" }
+  | { state: "not_found" }
+  | { state: "expired" }
+  | { state: "found"; receipt: PaymentStatusReceipt }
+> {
+  const found = findTrackedPayment(trackingId);
+  if (found.state !== "found") return found;
+
+  const rpcUrl = process.env.FIBER_RPC_URL?.trim() || "http://127.0.0.1:8227";
+  const cliPath = process.env.FNN_CLI_PATH?.trim() || "fnn-cli";
+  let record = found.record;
+  if (!terminalStatus(record.status)) {
+    const result = await runCli(cliPath, [
+      "payment",
+      "get_payment",
+      "--url",
+      rpcUrl,
+      "--payment-hash",
+      record.paymentHash,
+      "--output-format",
+      "json",
+      "--no-banner",
+      "--color",
+      "never",
+    ]) as { status?: string; fee?: string; failed_error?: string | null };
+    record = updateTrackedPayment(trackingId, {
+      status: result.status ?? record.status,
+      fee: result.fee,
+    }) ?? record;
+  }
+  return { state: "found", receipt: publicTrackedPayment(record) };
 }
 
 export type FiberInvoiceInspect = FiberInvoiceSummary & {
@@ -342,6 +414,23 @@ async function waitForFinalPayment(
 function terminalStatus(status?: string) {
   const normalized = status?.toUpperCase();
   return normalized === "SUCCESS" || normalized === "FAILED";
+}
+
+function publicTrackedPayment(record: TrackedPayment): PaymentStatusReceipt {
+  const status = record.status || "unknown";
+  return {
+    trackingId: record.id,
+    requestId: record.requestId,
+    amountCkb: record.amountCkb,
+    asset: "CKB",
+    paymentHash: redact(record.paymentHash)!,
+    status,
+    settled: status.toUpperCase() === "SUCCESS",
+    terminal: terminalStatus(status),
+    fee: record.fee,
+    updatedAt: record.updatedAt,
+    expiresAt: record.expiresAt,
+  };
 }
 
 function numberEnv(name: string, fallback: number) {

@@ -12,7 +12,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PayMode, PaymentRequest, PreflightResult } from "@/lib/types";
 import type { FiberSnapshot } from "@/lib/fiber-snapshot";
-import type { PaymentProofPolicy, PaymentProofReceipt } from "@/lib/payment-proof";
+import type { PaymentProofPolicy, PaymentProofReceipt, PaymentStatusReceipt } from "@/lib/payment-proof";
 import { getRequest, listRequests, newId, saveRequest, updateRequest } from "@/lib/store";
 import { runPreflight } from "@/lib/preflight";
 import { mockSettleInvoice, mockStreamTick } from "@/lib/mock-fiber";
@@ -50,6 +50,7 @@ import {
 import { QrCode } from "@/components/QrCode";
 import { Countdown } from "@/components/Countdown";
 import { ChannelStrip } from "@/components/ChannelStrip";
+import { PaymentTracker } from "@/components/PaymentTracker";
 
 function PulseApp() {
   const router = useRouter();
@@ -415,18 +416,20 @@ function PulseApp() {
           throw new Error(result.error ?? `Fiber payment request failed (${response.status})`);
         }
         setLiveReceipt(result);
-        setReceiptId(result.paymentHash ?? active.id);
+        setReceiptId(result.trackingId ?? result.paymentHash ?? active.id);
 
-        if (result.mode === "executed" && result.settled) {
-          const paid: PaymentRequest = {
+        if (result.mode === "executed") {
+          const executed: PaymentRequest = {
             ...active,
-            status: "paid",
-            paidAt: Date.now(),
+            status: result.settled ? "paid" : result.status.toUpperCase() === "FAILED" ? "failed" : active.status,
+            paidAt: result.settled ? Date.now() : active.paidAt,
             rail: "fiber",
+            fiberTrackingId: result.trackingId,
+            fiberPaymentStatus: result.status,
           };
-          saveRequest(paid);
-          setActive(paid);
-          setSession(recordSessionSpend(active.amountCkb));
+          saveRequest(executed);
+          setActive(executed);
+          if (result.settled) setSession(recordSessionSpend(active.amountCkb));
         }
         return;
       }
@@ -488,6 +491,25 @@ function PulseApp() {
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
+  }
+
+  function applyTrackedStatus(receipt: PaymentStatusReceipt) {
+    if (!active || receipt.requestId !== active.id) {
+      setError("The payment status does not belong to this request.");
+      return;
+    }
+    const newlySettled = receipt.settled && active.status !== "paid";
+    const updated: PaymentRequest = {
+      ...active,
+      status: receipt.settled ? "paid" : receipt.status.toUpperCase() === "FAILED" ? "failed" : active.status,
+      paidAt: receipt.settled ? active.paidAt ?? Date.now() : active.paidAt,
+      fiberTrackingId: receipt.trackingId,
+      fiberPaymentStatus: receipt.status,
+    };
+    saveRequest(updated);
+    setActive(updated);
+    setLiveReceipt((current) => current ? { ...current, status: receipt.status, settled: receipt.settled } : current);
+    if (newlySettled) setSession(recordSessionSpend(active.amountCkb));
   }
 
   if ((payId || payPayload) && active) {
@@ -598,6 +620,13 @@ function PulseApp() {
                     : "Fiber mock rail · channel balances updated on this device"}
                 </div>
               </div>
+            )}
+            {active.fiberTrackingId && (
+              <PaymentTracker
+                trackingId={active.fiberTrackingId}
+                initialStatus={active.fiberPaymentStatus}
+                onUpdate={applyTrackedStatus}
+              />
             )}
             {onL1 && active.l1Preimage && active.l1HandoffUrl && (
               <div style={styles.l1Box}>
@@ -1083,6 +1112,7 @@ function PulseApp() {
 
 function statusColor(status: PaymentRequest["status"]): string {
   if (status === "paid" || status === "capped") return "var(--lime)";
+  if (status === "failed") return "var(--ember)";
   if (status === "streaming" || status === "l1_handoff") return "#f0c24b";
   if (status === "expired") return "var(--ember)";
   return "var(--fog)";

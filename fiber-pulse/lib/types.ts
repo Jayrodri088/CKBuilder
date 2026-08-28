@@ -21,8 +21,11 @@ export interface PaymentRequest {
   tickCkb?: number;
   createdAt: number;
   expiresAt: number;
-  status: "open" | "paid" | "expired" | "streaming" | "capped" | "l1_handoff";
+  status: "open" | "paid" | "failed" | "expired" | "streaming" | "capped" | "l1_handoff";
   paidAt?: number;
+  /** Opaque server capability used to reconcile a submitted live Fiber payment. */
+  fiberTrackingId?: string;
+  fiberPaymentStatus?: string;
   streamedCkb?: number;
   /** Merchant-only secret for L1 hash-lock handoff */
   l1Preimage?: string;

@@ -24,6 +24,7 @@ run("typecheck", "pnpm", ["exec", "tsc", "--noEmit"]);
 run("build", "pnpm", ["run", "build"]);
 run("fiber security proof", "node", ["scripts/prove-fiber-security.mjs"]);
 run("fiber grant proof", "node", ["scripts/prove-fiber-grant.mjs"]);
+run("fiber payment tracking proof", "node", ["scripts/prove-fiber-tracking.mjs"]);
 
 console.log("\n--- live L1 (OffCKB) — skip if RPC down ---\n");
 {
@@ -61,9 +62,11 @@ for (const rel of [
   "lib/session-grant.ts",
   "lib/server/rate-limit.ts",
   "lib/server/payment-grant.ts",
+  "lib/server/payment-tracker.ts",
   "deployment/scripts.json",
   "components/QrCode.tsx",
   "components/InvoiceWatch.tsx",
+  "components/PaymentTracker.tsx",
 ]) {
   if (!fs.existsSync(path.join(root, rel))) {
     console.error(`Missing ${rel}`);

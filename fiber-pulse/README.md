@@ -15,6 +15,7 @@ Fiber Pulse is a consumer payment flow for CKB over Fiber: create a request, sha
 - One-shot HMAC payment grants so the payer never holds the operator token
 - File-backed payment/invoice cooldowns that survive process restart
 - Receipts that distinguish mock settlement, dry-run proof, and successful live settlement
+- Durable opaque payment tracking for status recovery after a refresh or server restart
 - L1 hash-lock fallback, funding monitor, and Pay Link claim handoff
 
 Live stream execution is intentionally not enabled yet. Stream mode remains a mock product prototype; live mode currently supports invoice payments only.
@@ -38,6 +39,7 @@ pnpm run build
 pnpm run prove:fiber-security
 pnpm run prove:fiber-grant
 pnpm run prove:fiber-watch
+pnpm run prove:fiber-tracking
 pnpm run prove:fiber-live
 pnpm run prove:l1-live
 pnpm run prove:l1-fund-claim
@@ -54,6 +56,8 @@ With FNN running, `prove:fiber-live` discovers a ready CKB channel and runs a 0.
 `prove:fiber-grant` issues a one-shot grant with an operator token, proves it is bound to request ID and amount, and fails closed when Fiber is unreachable.
 
 `prove:fiber-watch` creates an unpaid invoice and checks merchant watch. It skips if FNN is down.
+
+`prove:fiber-tracking` boots the production build with an isolated tracker store and proves that a terminal payment can be recovered after restart, the full payment hash remains private, and invalid, unknown, and expired capabilities fail distinctly.
 
 ## Merchant invoice flow
 
@@ -83,6 +87,10 @@ Public UI users can run a bounded dry-run proof. Actual execution requires all o
 - A configured target peer and sufficient ready-channel liquidity
 
 Keep execution disabled outside a short trusted test window. See `docs/FIBER_LIVE_MODE.md`.
+
+Executed payments receive a random 128-bit tracking capability. Pulse stores that opaque ID with the local request and keeps the full payment hash in `.data/payment-tracker.json` on the server. A payer can refresh the page and request the final status without receiving the private RPC URL or full hash. Tracking records expire after 24 hours by default; configure `FIBER_PAYMENT_TRACKING_TTL_MS` to change the retention window.
+
+Treat the tracking ID as a short-lived read capability: do not place it in public logs or shared payment links.
 
 ## L1 fallback
 
