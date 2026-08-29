@@ -10,6 +10,7 @@ Fiber Pulse is a consumer payment flow for CKB over Fiber: create a request, sha
 - Bounded `fnn-cli send_payment --dry-run` route proof
 - Operator-gated live keysend execution with a temporary bearer token
 - Merchant-directed settlement with signed Fiber invoice validation
+- Verified two-node settlement between independently keyed payer and merchant FNNs
 - Operator-gated signed invoice creation from the merchant UI
 - Merchant invoice watch against the receiving FNN (`get_invoice`)
 - One-shot HMAC payment grants so the payer never holds the operator token
@@ -40,6 +41,7 @@ pnpm run prove:fiber-security
 pnpm run prove:fiber-grant
 pnpm run prove:fiber-watch
 pnpm run prove:fiber-tracking
+pnpm run prove:fiber-two-node
 pnpm run prove:fiber-live
 pnpm run prove:l1-live
 pnpm run prove:l1-fund-claim
@@ -58,6 +60,8 @@ With FNN running, `prove:fiber-live` discovers a ready CKB channel and runs a 0.
 `prove:fiber-watch` creates an unpaid invoice and checks merchant watch. It skips if FNN is down.
 
 `prove:fiber-tracking` boots the production build with an isolated tracker store and proves that a terminal payment can be recovered after restart, the full payment hash remains private, and invalid, unknown, and expired capabilities fail distinctly.
+
+`prove:fiber-two-node` is the live settlement proof. It requires a fresh `FIBER_MERCHANT_INVOICE` from a separate receiving FNN, executes at most 0.05 testnet CKB through the production payment API, restarts Pulse, and verifies durable reconciliation. Generated evidence remains local in `artifacts/fiber-two-node-proof.json`.
 
 ## Merchant invoice flow
 

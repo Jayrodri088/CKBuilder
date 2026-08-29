@@ -118,9 +118,33 @@ Live execution can use a one-shot payment grant instead of putting the operator 
 
 ## Merchant settlement watch
 
-After sharing a signed invoice, Pulse polls `get_invoice` on the receiving FNN and shows `open` / `paid` / `cancelled` / `expired`. This is the merchant-side counterpart to payer execution. A true two-node settle still needs the invoice created on a separate receiving node.
+After sharing a signed invoice, Pulse polls `get_invoice` on the receiving FNN and shows `open` / `paid` / `cancelled` / `expired`. This is the merchant-side counterpart to payer execution. For a true two-node settlement, create the invoice on a separate receiving node as demonstrated below.
 
 The merchant screen can also call `new_invoice` through the narrow server API. Creation requires the operator token, accepts only a positive CKB amount, a bounded description, and an expiry from 60 seconds to 24 hours. Pulse derives the invoice currency from the active node network and returns only the signed invoice plus its redacted summary.
+
+## Two-node settlement proof
+
+The live proof uses independently keyed payer and merchant FNNs with a ready testnet channel. Create a fresh invoice on the merchant, then provide it to the proof process without saving it in a tracked environment file:
+
+```powershell
+$env:FIBER_MERCHANT_INVOICE = Read-Host "Fresh merchant invoice"
+try {
+  pnpm run prove:fiber-two-node
+} finally {
+  Remove-Item Env:FIBER_MERCHANT_INVOICE -ErrorAction SilentlyContinue
+}
+```
+
+The runner creates an ephemeral operator token, restricts execution to testnet and 0.05 CKB or less, submits the invoice through `/api/fiber/payment`, requires final `Success`, restarts Pulse, and resolves the durable tracking capability again. Confirm independently on the merchant with `invoice get_invoice`; its status must be `Paid`, and the merchant channel balance must increase by the invoice amount.
+
+For an isolated testnet merchant that must contribute funding capacity, this workstation includes a secure DPAPI-backed helper:
+
+```powershell
+pnpm run fund:merchant -- -Address <merchant-ckt-address> -Amount 200
+pnpm run fund:merchant -- -Address <merchant-ckt-address> -Amount 200 -Broadcast
+```
+
+The first command is a dry run. The second broadcasts only after the helper verifies the encrypted key belongs to the expected payer lock, the recipient uses the `ckt` testnet prefix, and the amount is no more than 300 CKB. The password and decrypted private key are never printed or written by the helper.
 
 ## Durable payment reconciliation
 

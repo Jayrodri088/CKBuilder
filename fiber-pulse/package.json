@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start -p 3060",
     "start:fnn": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-fnn-secure.ps1",
+    "fund:merchant": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/fund-merchant-secure.ps1",
     "check:fiber": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-fiber-rpc.ps1",
     "check:rpc": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-rpc.ps1",
     "prove:l1-live": "node ./scripts/prove-l1-live.mjs",
@@ -19,6 +20,7 @@
     "prove:fiber-grant": "node ./scripts/prove-fiber-grant.mjs",
     "prove:fiber-watch": "node ./scripts/prove-fiber-watch.mjs",
     "prove:fiber-tracking": "node ./scripts/prove-fiber-tracking.mjs",
+    "prove:fiber-two-node": "node ./scripts/prove-fiber-two-node.mjs",
     "sync:deployment": "node ./scripts/sync-deployment.mjs",
     "run:all": "node ./scripts/run-all.mjs"
   },

@@ -17,6 +17,7 @@ I closed that gap with durable, capability-based payment reconciliation. The imp
 | Payer recovery | Tracking status persists with the local payment request |
 | Failure handling | Terminal `FAILED` responses remain inspectable instead of collapsing into a generic error |
 | Regression proof | Production-build proof covers persistence, redaction, expiry, and invalid capabilities |
+| Two-node settlement | Independently keyed payer and merchant FNNs settled a signed invoice |
 
 ## Problem Identified
 
@@ -79,7 +80,11 @@ The file-backed tracker is intentionally documented as single-instance infrastru
 | `pnpm run prove:fiber-tracking` | Pass; restart recovery, redaction, invalid/unknown/expired handling |
 | `pnpm run prove:fiber-security` | Pass; RPC, amount, grant, invoice-create, and invoice-cancel boundaries |
 | `pnpm run prove:fiber-grant` | Pass; operator issue, request/amount binding, fail-closed execution |
-| Live FNN settlement | Not claimed in this phase because the local encrypted node credential remains unavailable to the launcher |
+| Secure FNN startup | Pass; the DPAPI-protected credential was recovered without exposing the password |
+| Merchant funding | Pass; bounded helper funded only the verified testnet merchant address |
+| Two-node channel | Pass; both payer and merchant reported the same `ChannelReady` outpoint |
+| `pnpm run prove:fiber-two-node` | Pass; 0.01 CKB settled and tracking survived an app restart |
+| Independent settlement check | Pass; payer reported `Success`, merchant invoice reported `Paid`, and channel balances changed by the exact amount |
 
 ## Outcomes
 
@@ -88,12 +93,13 @@ The file-backed tracker is intentionally documented as single-instance infrastru
 3. Made terminal payment failures durable and distinguishable from infrastructure errors.
 4. Added a production-build proof that does not require moving testnet funds.
 5. Established the storage contract needed for a later shared database implementation.
+6. Completed the pending real two-node milestone with distinct node keys, on-chain channel funding, signed invoice execution, and independent recipient verification.
 
 ## Next
 
-1. Restore the local FNN credential and run the live invoice and tracking proofs against a real payment.
-2. Run the full two-node merchant settlement and verify payer and merchant records independently.
-3. Replace file-backed tracking and cooldown state with a transactional shared store before multi-instance deployment.
+1. Replace file-backed tracking and cooldown state with a transactional shared store before multi-instance deployment.
+2. Add automated recovery coverage for temporary peer or RPC interruption during an in-flight payment.
+3. Add merchant-side reconciliation callbacks so external order systems can consume verified settlement state.
 
 ## References
 
