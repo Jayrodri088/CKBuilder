@@ -1,7 +1,8 @@
 export type FiberChannelSnapshot = {
   id: string;
   peer: string;
-  state: "ready" | "pending" | "closing" | "closed";
+  state: "ready" | "pending" | "closing" | "closed" | "failed";
+  failure?: string;
   enabled: boolean;
   connected: boolean;
   asset: string;

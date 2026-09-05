@@ -112,7 +112,7 @@ This command moves 0.01 testnet CKB. It discovers the ready channel target, gene
 
 ## Current boundary
 
-The in-memory cooldown is replaced by a file-backed limiter in `.data/`. That is enough for a local or single-machine restart. A public multi-instance deployment should still move the limiter onto shared storage.
+Cooldown state is durable in `.data/`. Configure `FIBER_STATE_DB_PATH` to place cooldowns in the shared SQLite state database described below.
 
 Live execution can use a one-shot payment grant instead of putting the operator token on the payer device. The merchant issues `pls1.` grants from the create screen; each grant is HMAC-signed and bound to request ID, amount, and invoice fingerprint. The payer spends it once.
 
@@ -150,6 +150,41 @@ The first command is a dry run. The second broadcasts only after the helper veri
 
 When an executed payment returns a payment hash, Pulse immediately creates a random tracking capability before waiting for final settlement. The full payment hash stays in `.data/payment-tracker.json`; the browser stores only the opaque tracking ID and a redacted receipt. This lets the payer refresh and later reconcile `Created` or in-flight payments through the same narrow payment API.
 
-Tracking records expire after `FIBER_PAYMENT_TRACKING_TTL_MS` (24 hours by default), are capped to 500 records, and return distinct invalid, missing, and expired responses. Terminal `Success` and `Failed` records can be read without contacting FNN again. Non-terminal records query server-owned `get_payment`. The file store is suitable for one application instance; use a transactional shared store and per-client rate limiting before horizontal deployment.
+Tracking records expire after `FIBER_PAYMENT_TRACKING_TTL_MS` (24 hours by default), are capped to 500 records, and return distinct invalid, missing, and expired responses. Terminal `Success` and `Failed` records can be read without contacting FNN again. Non-terminal records query server-owned `get_payment`. File mode supports one application process; SQLite mode safely coordinates processes on the same host.
 
 The tracking ID is a short-lived bearer capability for reading that payment's status. Pulse deliberately excludes it from share-link encoding; operators should also exclude it from public logs and analytics payloads.
+
+## Settlement webhooks
+
+A merchant deployment can notify its order system when the receiving FNN confirms an invoice as paid:
+
+```dotenv
+FIBER_SETTLEMENT_WEBHOOK_URL=https://merchant.example.com/hooks/fiber
+FIBER_SETTLEMENT_WEBHOOK_SECRET=<at-least-32-random-characters>
+```
+
+The destination is fixed by the server and must use HTTPS. HTTP is accepted only for an explicitly enabled loopback test receiver. Pulse sends `fiber.invoice.settled` with a deterministic event ID, invoice fingerprint, amount, currency, description, and observation time. It does not send the encoded invoice, payment hash, payee key, preimage, FNN RPC URL, or node credentials.
+
+Consumers must verify `x-fiber-pulse-signature`, which is HMAC-SHA256 over `<x-fiber-pulse-timestamp>.<raw-request-body>`, and deduplicate on `idempotency-key`. Pulse records an event before delivery, suppresses callbacks already marked delivered, and retries unsuccessful responses with bounded exponential delay. Delivery state is shown in the merchant settlement card.
+
+## Transactional state and worker
+
+On Node 22.6 or newer, enable the shared on-host state database:
+
+```dotenv
+FIBER_STATE_DB_PATH=.data/fiber-pulse.sqlite
+FIBER_SETTLEMENT_WORKER_INTERVAL_MS=5000
+FIBER_SETTLEMENT_WORKER_BATCH_SIZE=20
+```
+
+The database runs in WAL mode with `BEGIN IMMEDIATE` mutations and a busy timeout. Cooldowns, one-shot grants, payment tracking, and the settlement outbox use the same namespaced state table. Existing JSON state is imported on first access, so enabling the database does not discard active local records.
+
+Run callback delivery independently from the browser and Next.js request lifecycle:
+
+```powershell
+pnpm run worker:webhooks
+```
+
+The worker claims due events with a transactional lease before sending them. Another app or worker process observes the lease and cannot issue the same attempt. Expired leases can be recovered after a crashed worker, while only the lease owner can finalize delivery state.
+
+Run the worker with the same environment and persistent `.data` volume as Fiber Pulse. SQLite WAL supports multiple processes on one VPS; it is not a multi-host coordination layer. A horizontally distributed deployment should replace this adapter with PostgreSQL or another networked transactional database while preserving the lease and idempotency contract.

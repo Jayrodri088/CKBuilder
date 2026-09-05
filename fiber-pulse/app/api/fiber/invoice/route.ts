@@ -9,6 +9,7 @@ import {
   watchFiberInvoice,
 } from "@/lib/server/fiber-payment";
 import { claimCooldown } from "@/lib/server/rate-limit";
+import { notifyFiberSettlement } from "@/lib/server/settlement-webhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,6 +108,15 @@ export async function POST(request: NextRequest) {
       ) {
         return failure(400, "Invoice amount does not match the payment request.");
       }
+      let webhook;
+      if (watch && watched.settled) {
+        try {
+          webhook = await notifyFiberSettlement({ encodedInvoice: invoice, invoice: watched.invoice });
+        } catch {
+          console.error("Fiber settlement webhook could not be recorded");
+          webhook = { configured: true, state: "failed" as const };
+        }
+      }
       return NextResponse.json(
         {
           valid: true,
@@ -116,6 +126,7 @@ export async function POST(request: NextRequest) {
           status: watched.status,
           settled: watched.settled,
           invoice: watched.invoice,
+          webhook,
         },
         { headers: { "cache-control": "no-store" } },
       );

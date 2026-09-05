@@ -5,6 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 type WatchResult = {
   status?: "open" | "paid" | "cancelled" | "expired" | "unknown";
   settled?: boolean;
+  webhook?: {
+    configured: boolean;
+    eventId?: string;
+    state: "disabled" | "misconfigured" | "pending" | "delivered" | "failed";
+    attempts?: number;
+    nextAttemptAt?: string;
+  };
   error?: string;
 };
 
@@ -34,7 +41,7 @@ export function InvoiceWatch({
         setResult({ error: body.error ?? "Invoice watch failed." });
         return;
       }
-      setResult({ status: body.status, settled: body.settled });
+      setResult({ status: body.status, settled: body.settled, webhook: body.webhook });
     } catch {
       setResult({ error: "Fiber node could not be reached for invoice watch." });
     } finally {
@@ -126,6 +133,35 @@ export function InvoiceWatch({
       </p>
       {result?.error && (
         <p style={{ margin: 0, fontSize: 12, color: "var(--ember)" }}>{result.error}</p>
+      )}
+      {status === "paid" && result?.webhook && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            paddingTop: 8,
+            borderTop: "1px solid var(--line)",
+            fontSize: 11,
+          }}
+        >
+          <span style={{ color: "var(--mute)" }}>Order callback</span>
+          <span
+            style={{
+              color:
+                result.webhook.state === "delivered"
+                  ? "var(--lime)"
+                  : result.webhook.state === "failed" || result.webhook.state === "misconfigured"
+                    ? "var(--ember)"
+                    : "var(--mute)",
+              fontFamily: "var(--font-mono)",
+              textTransform: "uppercase",
+            }}
+          >
+            {result.webhook.state}
+            {result.webhook.attempts ? ` / ${result.webhook.attempts}` : ""}
+          </span>
+        </div>
       )}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button

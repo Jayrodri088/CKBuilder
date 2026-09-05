@@ -2,6 +2,9 @@
   "name": "fiber-pulse",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.6.0"
+  },
   "description": "Consumer Fiber pay MVP — request, preflight, pay (mock-first, optional live RPC)",
   "scripts": {
     "dev": "next dev -p 3060",
@@ -21,6 +24,9 @@
     "prove:fiber-watch": "node ./scripts/prove-fiber-watch.mjs",
     "prove:fiber-tracking": "node ./scripts/prove-fiber-tracking.mjs",
     "prove:fiber-two-node": "node ./scripts/prove-fiber-two-node.mjs",
+    "prove:fiber-webhook": "node --no-warnings --experimental-strip-types ./scripts/prove-fiber-webhook.mjs",
+    "prove:state-store": "node --no-warnings --experimental-strip-types ./scripts/prove-state-store.mjs",
+    "worker:webhooks": "node --no-warnings --experimental-strip-types ./scripts/settlement-webhook-worker.mjs",
     "sync:deployment": "node ./scripts/sync-deployment.mjs",
     "run:all": "node ./scripts/run-all.mjs"
   },

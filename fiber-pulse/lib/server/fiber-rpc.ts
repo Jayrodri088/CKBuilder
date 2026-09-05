@@ -43,7 +43,8 @@ function short(value: unknown, fallback: string) {
   return text.length > 18 ? `${text.slice(0, 10)}...${text.slice(-6)}` : text;
 }
 
-function channelState(raw: any): FiberChannelSnapshot["state"] {
+export function channelState(raw: any): FiberChannelSnapshot["state"] {
+  if (typeof raw.failure_detail === "string" && raw.failure_detail.trim()) return "failed";
   const state = String(raw.state?.state_name ?? raw.state_name ?? raw.state ?? "").toUpperCase();
   if (state === "CHANNELREADY" || state === "OPEN") return "ready";
   if (state.includes("CLOS") || state.includes("SHUTDOWN")) return "closing";
@@ -58,6 +59,10 @@ function normalizeChannel(raw: any, index: number, connectedPeers: Set<string>):
     id: short(raw.channel_id ?? raw.channelId, `channel-${index + 1}`),
     peer: short(peer, "configured-peer"),
     state: channelState(raw),
+    failure:
+      typeof raw.failure_detail === "string" && raw.failure_detail.trim()
+        ? raw.failure_detail.trim().slice(0, 160)
+        : undefined,
     enabled: raw.enabled !== false,
     connected: typeof peer === "string" && connectedPeers.has(peer),
     asset: asset ? String(asset) : "CKB",

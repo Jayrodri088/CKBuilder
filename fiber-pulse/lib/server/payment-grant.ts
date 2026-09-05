@@ -1,8 +1,5 @@
 import { createHmac, createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-
-const file = join(process.cwd(), ".data", "payment-grants.json");
+import { mutateState, readState } from "./state-store.ts";
 
 type GrantRecord = {
   requestId: string;
@@ -29,21 +26,6 @@ function grantSecret() {
   const operator = process.env.FIBER_PAYMENT_EXECUTION_TOKEN?.trim();
   if (operator) return createHash("sha256").update(`pulse-grant-v1:${operator}`).digest("hex");
   return undefined;
-}
-
-function load(): Store {
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as Store;
-  } catch {
-    return {};
-  }
-}
-
-function save(store: Store) {
-  mkdirSync(join(process.cwd(), ".data"), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(store));
-  renameSync(tmp, file);
 }
 
 export function invoiceFingerprint(invoice?: string) {
@@ -92,14 +74,14 @@ export function issuePaymentGrant(input: {
     invoiceFp: invoiceFingerprint(input.invoice),
     exp: Date.now() + (input.ttlMs ?? 10 * 60_000),
   };
-  const store = load();
-  store[id] = {
-    requestId: payload.requestId,
-    amountCkb: payload.amountCkb,
-    invoiceFp: payload.invoiceFp,
-    exp: payload.exp,
-  };
-  save(store);
+  mutateState<Store, void>("payment-grants", {}, (store) => {
+    store[id] = {
+      requestId: payload.requestId,
+      amountCkb: payload.amountCkb,
+      invoiceFp: payload.invoiceFp,
+      exp: payload.exp,
+    };
+  });
   return {
     grant: sign(payload, secret),
     grantId: id,
@@ -148,16 +130,19 @@ function inspectGrant(
   if (payload.invoiceFp !== invoiceFingerprint(input.invoice)) {
     return { ok: false as const, error: "Payment grant is bound to a different invoice." };
   }
-  const store = load();
-  const record = store[payload.id];
-  if (!record) return { ok: false as const, error: "Payment grant is unknown." };
-  if (record.usedAt) return { ok: false as const, error: "Payment grant has already been used." };
-  if (consume) {
-    record.usedAt = Date.now();
-    store[payload.id] = record;
-    save(store);
-  }
-  return { ok: true as const, grantId: payload.id };
+  const apply = (store: Store) => {
+    const record = store[payload.id];
+    if (!record) return { ok: false as const, error: "Payment grant is unknown." };
+    if (record.usedAt) return { ok: false as const, error: "Payment grant has already been used." };
+    if (consume) {
+      record.usedAt = Date.now();
+      store[payload.id] = record;
+    }
+    return { ok: true as const, grantId: payload.id };
+  };
+  return consume
+    ? mutateState("payment-grants", {} as Store, apply)
+    : apply(readState("payment-grants", {} as Store));
 }
 
 export function looksLikePaymentGrant(token: string | null) {

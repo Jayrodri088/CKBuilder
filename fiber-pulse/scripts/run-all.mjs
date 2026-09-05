@@ -25,6 +25,8 @@ run("build", "pnpm", ["run", "build"]);
 run("fiber security proof", "node", ["scripts/prove-fiber-security.mjs"]);
 run("fiber grant proof", "node", ["scripts/prove-fiber-grant.mjs"]);
 run("fiber payment tracking proof", "node", ["scripts/prove-fiber-tracking.mjs"]);
+run("fiber settlement webhook proof", "node", ["--no-warnings", "--experimental-strip-types", "scripts/prove-fiber-webhook.mjs"]);
+run("transactional state proof", "node", ["--no-warnings", "--experimental-strip-types", "scripts/prove-state-store.mjs"]);
 
 console.log("\n--- live L1 (OffCKB) — skip if RPC down ---\n");
 {
